@@ -78,6 +78,9 @@ u_char   morph_object           (struct MorphInfo* info);
 u_char   inline_css_content     (struct MorphInfo* info , map req_mapper);
 u_char** get_html_required_files(struct MorphInfo* info , int* length);
 u_char** get_required_css_files (struct MorphInfo* info , int* length);
+u_char inline_css_content(struct MorphInfo* info   ,map req_mapper);
+u_char morph_html_from_content(struct MorphInfo* info   ,map req_mapper);
+
 
 void free_memory(u_char* data, ngx_uint_t size);
 
@@ -481,6 +484,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
             main_info->root      = copy_ngx_str(core_plcf->root, r->pool),
             main_info->uri       = copy_ngx_str(r->uri, r->pool),
 
+
             main_info->alias     = core_plcf->alias != NGX_MAX_SIZE_T_VALUE ? core_plcf->alias : 0,
             main_info->content   = ctx->response,
             main_info->size      = ctx->size,
@@ -712,57 +716,59 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				req_data->length = ctx->size;
                 map_set(req_mapper, (char *)r->uri.data, req_data);
 
-                subreq_count++;
-                if (subreq_count == subreq_tbd) {
-                    // int rc = NGX_OK;
-                    // u_char** objects = NULL;
-                    // ngx_http_request_t *sr = NULL;
+				printf("FIRST %s %ld\n", r->uri.data , r->uri.len);
 
-                    inline_css_content(main_info , req_mapper);
+				if (subreq_count == subreq_tbd){
 
-                    // objects = get_html_required_files(main_info , &subreq_tbd);
+					int rc = NGX_OK;
+					u_char** objects = NULL;
+					ngx_http_request_t *sr = NULL;
 
-                    // subreq_count = 0;
+					inline_css_content(main_info , req_mapper);
 
-                    // printf("Required files from CSS\n");
-                    // for (int i = 0 ; i < subreq_tbd ; i++){
-                    //     printf("%s %ld\n",objects[i] , strlen((const char *)objects[i]));
-                    // }
+					objects = get_html_required_files(main_info , &subreq_tbd);
+					subreq_count = 0;
 
-                    // for (int i = 0; rc == NGX_OK && i < subreq_tbd ; i++){
-                    //     ngx_str_t uri;
+					printf("Required files\n");
+					for (int i = 0 ; i < subreq_tbd ; i++){
+						printf("%s %ld\n",objects[i] , strlen((const char *)objects[i]));
+					}
 
-                        // (&uri)->len = strlen((const char *)objects[i]);
-                        // (&uri)->data = (u_char *) objects[i];
+					for (int i = 0; rc == NGX_OK && i < subreq_tbd ; i++){
+						ngx_str_t uri;
 
-                    //     printf("SUB for %s %ld\n",uri.data , uri.len);
-                    //     ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
-                    // }
+						(&uri)->len = strlen((const char *)objects[i]);
+						(&uri)->data = (u_char *) objects[i];
 
-                    response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
+						printf("SUB for %s %ld\n",uri.data , uri.len);
+						ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
+					}
 
-                    ngx_memcpy(response, main_info->content, main_info->size);
+					// response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
 
-                    b = ngx_calloc_buf(r->pool);
+					// ngx_memcpy(response, main_info->content, main_info->size);
 
-                    if (b == NULL)
-                        return NGX_ERROR;
+					// b = ngx_calloc_buf(r->pool);
 
-                    b->pos  = response;
-                    b->last = b->pos + main_info->size;
+					// if (b == NULL) {
+					// 	return NGX_ERROR;
+					// }
 
-                    b->last_buf      = 1;
-                    b->memory        = 1;
-                    b->last_in_chain = 1;
+					// b->pos  = response;
+					// b->last = b->pos + main_info->size;
 
-                    out.buf  = b;
-                    out.next = NULL;
+					// b->last_buf      = 1;
+					// b->memory        = 1;
+					// b->last_in_chain = 1;
 
-                    return ngx_http_next_body_filter(r, &out);
-                }
-            }
+					// out.buf  = b;
+					// out.next = NULL;
 
-        } else {
+					// return ngx_http_next_body_filter(r, &out);
+				}
+			}
+  		}
+		else {
 
             if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
 
@@ -776,19 +782,16 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				req_data->length = ctx->size;
                 map_set(req_mapper, (char *)r->uri.data, req_data);
 
-                printf("DATA %s %ld\n", r->uri.data , r->uri.len);
+				printf("SECOND %s %ld\n", r->uri.data , r->uri.len);
 
                 subreq_count++;
-                // if (subreq_count == subreq_tbd){
 
-                //     u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char) + 1);
-                //     strcpy((char *)init_response , (char *)main_info->content);
+				if (subreq_count == subreq_tbd){
 
-                //     if ( morph_html_from_content(main_info , req_mapper) ) {
+					printf("FINAL\n");
 
-                //         /* Copy the morphed html and free the memory that was
-                //             * allocated in rust using the custom "free memory" funtion. */
-                        // response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
+					u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char) + 1);
+					strcpy((char *)init_response , (char *)main_info->content);
 
 
 					if ( morph_html_from_content(main_info , req_mapper) ) {
@@ -823,20 +826,27 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 						response = init_response;
 					}
 
-                    // b->pos  = response;
-                    // b->last = b->pos + main_info->size;
 
-                    // b->last_buf      = 1;
-                    // b->memory        = 1;
-                    // b->last_in_chain = 1;
+					b = ngx_calloc_buf(r->pool);
 
-                    // out.buf  = b;
-                    // out.next = NULL;
+					if (b == NULL) {
+						return NGX_ERROR;
+					}
 
-                    // return ngx_http_next_body_filter(r, &out);
-                // }
-            }
-        }
+					b->pos  = response;
+					b->last = b->pos + main_info->size;
+
+					b->last_buf      = 1;
+					b->memory        = 1;
+					b->last_in_chain = 1;
+
+					out.buf  = b;
+					out.next = NULL;
+
+					return ngx_http_next_body_filter(r, &out);
+				}
+			}
+		}
 
     }
     return ngx_http_next_body_filter(r, in);
