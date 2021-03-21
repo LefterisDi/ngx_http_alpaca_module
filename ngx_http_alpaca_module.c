@@ -158,6 +158,8 @@ static ngx_command_t ngx_http_alpaca_commands[] = {
     ngx_null_command
 };
 
+// -----------------------------------------------------------------------------------------------------
+
 static ngx_http_module_t ngx_http_alpaca_module_ctx = {
     NULL,                 /* preconfiguration */
     ngx_http_alpaca_init, /* postconfiguration */
@@ -209,13 +211,7 @@ static ngx_int_t is_css(ngx_http_request_t* r) {
 
 static ngx_int_t is_paddable(ngx_http_request_t* r) {
 
-	// printf("%s\n",r->uri.data);
-	// if(strstr((const char*)r->uri.data, ".png?alpaca-padding=") != NULL) {
-	// 	r->headers_out.content_type.data = (u_char*)"image/png";
-	// 	r->headers_out.content_type.len = 9;
-	// 	r->headers_out.content_type_len = 9;
-	// }
-	return ( r->headers_out.content_type.len >= 6                             &&
+	return ( r->headers_out.content_type.len >= 6                                                                          &&
 		     ngx_strncmp(r->headers_out.content_type.data, "image/", 6) == 0)                                              ||
 		     ngx_strncmp(r->headers_out.content_type.data, "application/javascript", r->headers_out.content_type.len) == 0 ||
 		     ngx_strncmp(r->headers_out.content_type.data, "text/css"              , r->headers_out.content_type.len) == 0;
@@ -223,69 +219,7 @@ static ngx_int_t is_paddable(ngx_http_request_t* r) {
 		//    || ngx_strncmp(r->headers_out.content_type.data, "text/plain", r->headers_out.content_type.len) == 0;
 }
 
-static ngx_int_t ngx_http_alpaca_header_filter(ngx_http_request_t* r) {
-    // setenv("RUST_BACKTRACE", "1", 1);        // for rust debugging
-
-    ngx_http_alpaca_loc_conf_t *plcf;
-    ngx_http_alpaca_ctx_t      *ctx;
-
-    plcf = ngx_http_get_module_loc_conf(r, ngx_http_alpaca_module);
-
-    /* Call the next filter if neither of the ALPaCA versions have been
-     * activated                                                        */
-
-    /* But always serve the fake image, even if the configuration does not
-     * enable ALPaCA for the /__alpaca_fake_image.png url                  */
-    if ( !is_fake_image(r) && !plcf->prob_enabled && !plcf->deter_enabled )
-        return ngx_http_next_header_filter(r);
-
-
-    /* Get the module context */
-    ctx = ngx_http_get_module_ctx(r, ngx_http_alpaca_module);
-
-    if (ctx == NULL) {
-
-        ctx = ngx_pcalloc( r->pool, sizeof(ngx_http_alpaca_ctx_t) );
-
-        if (ctx == NULL) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "[Alpaca filter]: cannot allocate ctx memory");
-            return ngx_http_next_header_filter(r);
-        }
-
-        ngx_http_set_ctx(r, ctx, ngx_http_alpaca_module);
-
-        /* Allocate some space for the whole response if we have an html request */
-        if ( is_html(r) && !is_fake_image(r) ) {
-
-            ctx->capacity = ( r->headers_out.content_length_n <= 0 ) ? 1000 : r->headers_out.content_length_n;
-            ctx->size     = 0;
-            ctx->response = ngx_pcalloc(r->pool, ctx->capacity + 1);
-            ctx->end      = ctx->response;
-        }
-    }
-
-    /* If the fake alpaca image is requested, change the 404 status to 200 */
-    if (is_fake_image(r) && r->args.len != 0) {
-        r->headers_out.status            = 200;
-        r->headers_out.content_type.data = (u_char*)"image/png";
-        r->headers_out.content_type.len  = 9;
-        r->headers_out.content_type_len  = 9;
-    }
-
-    /* Force reading file buffers into memory buffers */
-    r->filter_need_in_memory = 1;
-
-    /* Reset content length */
-    ngx_http_clear_content_length(r);
-
-    /* Disable ranges */
-    ngx_http_clear_accept_ranges(r);
-
-    /* Clear etag */
-    ngx_http_clear_etag(r);
-
-    return ngx_http_next_header_filter(r);
-}
+// -----------------------------------------------------------------------------------------------------
 
 static u_char* copy_ngx_str(ngx_str_t str, ngx_pool_t* pool) {
 
@@ -352,9 +286,218 @@ static u_char* get_response(ngx_http_alpaca_ctx_t* ctx, ngx_http_request_t* r, n
     return NULL;
 }
 
-static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t* in) {
+struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t* r, ngx_http_core_loc_conf_t *core_plcf, ngx_http_alpaca_loc_conf_t *plcf , ngx_http_alpaca_ctx_t* ctx){
+
+    struct MorphInfo *main_info = NULL;
+
+    main_info = malloc( sizeof(struct MorphInfo) );
+
+    main_info->http_host = copy_ngx_str(r->headers_in.host->value, r->pool);
+    main_info->root      = copy_ngx_str(core_plcf->root, r->pool);
+    main_info->uri       = copy_ngx_str(r->uri, r->pool);
+
+
+    main_info->alias     = core_plcf->alias != NGX_MAX_SIZE_T_VALUE ? core_plcf->alias : 0;
+    main_info->content   = ctx->response;
+    main_info->size      = ctx->size;
+
+    main_info->dist_obj_size  = copy_ngx_str(plcf->dist_obj_size , r->pool);
+    main_info->dist_obj_num   = copy_ngx_str(plcf->dist_obj_num  , r->pool);
+    main_info->dist_html_size = copy_ngx_str(plcf->dist_html_size, r->pool);
+
+    main_info->max_obj_size         = plcf->max_obj_size;
+    main_info->obj_inlining_enabled = plcf->obj_inlining_enabled;
+    main_info->obj_num              = plcf->obj_num;
+    main_info->obj_size             = plcf->obj_size;
+    main_info->probabilistic        = plcf->prob_enabled;
+    main_info->use_total_obj_size   = plcf->use_total_obj_size;
+
+    return main_info;
+}
+
+static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx, u_char* response, ngx_chain_t* out, bool in_memory){
 
     ngx_buf_t   *b;
+    // ngx_chain_t  out;
+
+    b = ngx_calloc_buf(r->pool);
+
+    if (b == NULL) {
+        return NGX_ERROR;
+    }
+
+    b->pos  = response;
+    b->last = b->pos + ctx->size;
+
+    b->last_buf      = 1;
+    b->last_in_chain = 1;
+
+    if (in_memory){
+        b->memory        = 1;
+    }
+
+    out->buf  = b;
+    out->next = NULL;
+
+    return NGX_OK;
+}
+
+// -----------------------------------------------------------------------------------------------------
+
+static void* ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf) {
+
+    ngx_http_alpaca_loc_conf_t* conf;
+
+    conf = ngx_pcalloc( cf->pool, sizeof(ngx_http_alpaca_loc_conf_t) );
+
+    if (conf == NULL) {
+        return NULL;
+    }
+
+    conf->prob_enabled         = NGX_CONF_UNSET;
+    conf->deter_enabled        = NGX_CONF_UNSET;
+    conf->obj_num              = NGX_CONF_UNSET_UINT;
+    conf->obj_size             = NGX_CONF_UNSET_UINT;
+    conf->max_obj_size         = NGX_CONF_UNSET_UINT;
+    conf->use_total_obj_size   = NGX_CONF_UNSET;
+    conf->obj_inlining_enabled = NGX_CONF_UNSET;
+
+    return conf;
+}
+
+static char* ngx_http_alpaca_merge_loc_conf(ngx_conf_t* cf, void* parent, void* child) {
+
+    ngx_http_alpaca_loc_conf_t* prev = parent;
+    ngx_http_alpaca_loc_conf_t* conf = child;
+
+    ngx_conf_merge_value     (conf->prob_enabled        , prev->prob_enabled        , 0 );
+    ngx_conf_merge_value     (conf->deter_enabled       , prev->deter_enabled       , 0 );
+    ngx_conf_merge_uint_value(conf->obj_num             , prev->obj_num             , 0 );
+    ngx_conf_merge_uint_value(conf->obj_size            , prev->obj_size            , 0 );
+    ngx_conf_merge_uint_value(conf->max_obj_size        , prev->max_obj_size        , 0 );
+    ngx_conf_merge_str_value (conf->dist_html_size      , prev->dist_html_size      , "");
+    ngx_conf_merge_str_value (conf->dist_obj_num        , prev->dist_obj_num        , "");
+    ngx_conf_merge_str_value (conf->dist_obj_size       , prev->dist_obj_size       , "");
+    ngx_conf_merge_value     (conf->use_total_obj_size  , prev->use_total_obj_size  , 0 );
+    ngx_conf_merge_value     (conf->obj_inlining_enabled, prev->obj_inlining_enabled, 0 );
+
+
+    /* Check if the directives' arguments are properly set */
+    if ( (conf->prob_enabled && conf->deter_enabled) ) {
+        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "Both probabilistic and deterministic ALPaCA are enabled." );
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->prob_enabled && conf->dist_obj_size.len == 0) {
+        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "dist_obj_size is needed in probabilistic mode" );
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->deter_enabled) {
+
+        if ( (conf->obj_size <= 0) || (conf->max_obj_size <= 0) ) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "You can't provide non-positive values or no "
+                                                     "values at all for deterministic ALPaCA."      );
+            return NGX_CONF_ERROR;
+        }
+
+        if ( conf->max_obj_size < conf->obj_size ) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Object size cannot be greater than max object "
+                                                     "size for deterministic ALPaCA."                 );
+            return NGX_CONF_ERROR;
+        }
+
+        if ( conf->max_obj_size % conf->obj_size != 0 ) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Max object size has to be a multiple of object "
+                                                     "size for deterministic ALPaCA."                  );
+            return NGX_CONF_ERROR;
+        }
+    }
+    return NGX_CONF_OK;
+}
+
+static ngx_int_t ngx_http_alpaca_init(ngx_conf_t* cf) {
+
+    /* Install handler in header filter chain */
+    ngx_http_next_header_filter = ngx_http_top_header_filter;
+    ngx_http_top_header_filter  = ngx_http_alpaca_header_filter;
+
+    /* Install handler in body filter chain */
+    ngx_http_next_body_filter = ngx_http_top_body_filter;
+    ngx_http_top_body_filter  = ngx_http_alpaca_body_filter;
+
+    return NGX_OK;
+}
+
+// -----------------------------------------------------------------------------------------------------
+
+static ngx_int_t ngx_http_alpaca_header_filter(ngx_http_request_t* r) {
+    // setenv("RUST_BACKTRACE", "1", 1);        // for rust debugging
+
+    ngx_http_alpaca_loc_conf_t *plcf;
+    ngx_http_alpaca_ctx_t      *ctx;
+
+    plcf = ngx_http_get_module_loc_conf(r, ngx_http_alpaca_module);
+
+    /* Call the next filter if neither of the ALPaCA versions have been
+     * activated                                                        */
+
+    /* But always serve the fake image, even if the configuration does not
+     * enable ALPaCA for the /__alpaca_fake_image.png url                  */
+    if ( !is_fake_image(r) && !plcf->prob_enabled && !plcf->deter_enabled )
+        return ngx_http_next_header_filter(r);
+
+
+    /* Get the module context */
+    ctx = ngx_http_get_module_ctx(r, ngx_http_alpaca_module);
+
+    if (ctx == NULL) {
+
+        ctx = ngx_pcalloc( r->pool, sizeof(ngx_http_alpaca_ctx_t) );
+
+        if (ctx == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "[Alpaca filter]: cannot allocate ctx memory");
+            return ngx_http_next_header_filter(r);
+        }
+
+        ngx_http_set_ctx(r, ctx, ngx_http_alpaca_module);
+
+        /* Allocate some space for the whole response if we have an html request */
+        if ( is_html(r) && !is_fake_image(r) ) {
+
+            ctx->capacity = ( r->headers_out.content_length_n <= 0 ) ? 1000 : r->headers_out.content_length_n;
+            ctx->size     = 0;
+            ctx->response = ngx_pcalloc(r->pool, ctx->capacity + 1);
+            ctx->end      = ctx->response;
+        }
+    }
+
+    /* If the fake alpaca image is requested, change the 404 status to 200 */
+    if (is_fake_image(r) && r->args.len != 0) {
+        r->headers_out.status            = 200;
+        r->headers_out.content_type.data = (u_char*)"image/png";
+        r->headers_out.content_type.len  = 9;
+        r->headers_out.content_type_len  = 9;
+    }
+
+    /* Force reading file buffers into memory buffers */
+    r->filter_need_in_memory = 1;
+
+    /* Reset content length */
+    ngx_http_clear_content_length(r);
+
+    /* Disable ranges */
+    ngx_http_clear_accept_ranges(r);
+
+    /* Clear etag */
+    ngx_http_clear_etag(r);
+
+    return ngx_http_next_header_filter(r);
+}
+
+static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t* in) {
+
+    // ngx_buf_t   *b;
     ngx_chain_t  out;
 
     ngx_http_alpaca_loc_conf_t *plcf;
@@ -434,24 +577,30 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
         free_memory(info.content, info.size);
 
-        /* Return the padding in a new buffer */
-        b = ngx_calloc_buf(r->pool);
+        ctx->size = info.size;
 
-        if (b == NULL)
-            return NGX_ERROR;
+        send_response(r ,ctx , response, &out, true);
 
-        b->pos  = response;
-        b->last = b->pos + info.size;
+        // /* Return the padding in a new buffer */
+        // b = ngx_calloc_buf(r->pool);
 
-        b->last_buf      = 1;
-        b->memory        = 1;
-        b->last_in_chain = 1;
+        // if (b == NULL)
+        //     return NGX_ERROR;
 
-        out.buf  = b;
-        out.next = NULL;
+        // b->pos  = response;
+        // b->last = b->pos + info.size;
+
+        // b->last_buf      = 1;
+        // b->memory        = 1;
+        // b->last_in_chain = 1;
+
+        // out.buf  = b;
+        // out.next = NULL;
 
         return ngx_http_next_body_filter(r, &out);
     }
+
+
 
     /* If the response is an html, wait until the whole body has been *
      * captured and morph it according to ALPaCA                      */
@@ -478,27 +627,29 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 			u_char** objects = NULL;
 			ngx_http_request_t *sr = NULL;
 
-            main_info = malloc( sizeof(struct MorphInfo) );
+            main_info = initialize_morph_html_struct(r, core_plcf, plcf, ctx);
 
-            main_info->http_host = copy_ngx_str(r->headers_in.host->value, r->pool),
-            main_info->root      = copy_ngx_str(core_plcf->root, r->pool),
-            main_info->uri       = copy_ngx_str(r->uri, r->pool),
+            // main_info = malloc( sizeof(struct MorphInfo) );
+
+            // main_info->http_host = copy_ngx_str(r->headers_in.host->value, r->pool),
+            // main_info->root      = copy_ngx_str(core_plcf->root, r->pool),
+            // main_info->uri       = copy_ngx_str(r->uri, r->pool),
 
 
-            main_info->alias     = core_plcf->alias != NGX_MAX_SIZE_T_VALUE ? core_plcf->alias : 0,
-            main_info->content   = ctx->response,
-            main_info->size      = ctx->size,
+            // main_info->alias     = core_plcf->alias != NGX_MAX_SIZE_T_VALUE ? core_plcf->alias : 0,
+            // main_info->content   = ctx->response,
+            // main_info->size      = ctx->size,
 
-            main_info->dist_obj_size  = copy_ngx_str(plcf->dist_obj_size , r->pool),
-            main_info->dist_obj_num   = copy_ngx_str(plcf->dist_obj_num  , r->pool),
-            main_info->dist_html_size = copy_ngx_str(plcf->dist_html_size, r->pool),
+            // main_info->dist_obj_size  = copy_ngx_str(plcf->dist_obj_size , r->pool),
+            // main_info->dist_obj_num   = copy_ngx_str(plcf->dist_obj_num  , r->pool),
+            // main_info->dist_html_size = copy_ngx_str(plcf->dist_html_size, r->pool),
 
-            main_info->max_obj_size         = plcf->max_obj_size,
-            main_info->obj_inlining_enabled = plcf->obj_inlining_enabled,
-            main_info->obj_num              = plcf->obj_num,
-            main_info->obj_size             = plcf->obj_size,
-            main_info->probabilistic        = plcf->prob_enabled,
-            main_info->use_total_obj_size   = plcf->use_total_obj_size,
+            // main_info->max_obj_size         = plcf->max_obj_size,
+            // main_info->obj_inlining_enabled = plcf->obj_inlining_enabled,
+            // main_info->obj_num              = plcf->obj_num,
+            // main_info->obj_size             = plcf->obj_size,
+            // main_info->probabilistic        = plcf->prob_enabled,
+            // main_info->use_total_obj_size   = plcf->use_total_obj_size,
 
             objects = get_required_css_files(main_info, &subreq_tbd);
 
@@ -585,22 +736,24 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					response = ctx->response;
 				}
 
-				/* Return the modified response in a new buffer */
-				b = ngx_calloc_buf(r->pool);
+                send_response(r ,ctx , response, &out, true);
 
-				if (b == NULL) {
-					return NGX_ERROR;
-				}
+				// /* Return the modified response in a new buffer */
+				// b = ngx_calloc_buf(r->pool);
 
-				b->pos  = response;
-				b->last = b->pos + ctx->size;
+				// if (b == NULL) {
+				// 	return NGX_ERROR;
+				// }
 
-				b->last_buf      = 1;
-				b->memory        = 1;
-				b->last_in_chain = 1;
+				// b->pos  = response;
+				// b->last = b->pos + ctx->size;
 
-				out.buf  = b;
-				out.next = NULL;
+				// b->last_buf      = 1;
+				// b->memory        = 1;
+				// b->last_in_chain = 1;
+
+				// out.buf  = b;
+				// out.next = NULL;
 
 				return ngx_http_next_body_filter(r, &out);
             }
@@ -608,15 +761,17 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
                 ngx_http_set_ctx(r, NULL, ngx_http_alpaca_module);
 
-                b = ngx_calloc_buf(r->pool);
-                if (b == NULL)
-                    return NGX_ERROR;
+                send_response(r ,ctx , response, &out, false);
 
-                b->last_buf = 1;
-                b->last_in_chain = 1;
+                // b = ngx_calloc_buf(r->pool);
+                // if (b == NULL)
+                //     return NGX_ERROR;
 
-                out.buf = b;
-                out.next = NULL;
+                // b->last_buf = 1;
+                // b->last_in_chain = 1;
+
+                // out.buf = b;
+                // out.next = NULL;
 
                 return ngx_http_next_body_filter(r, &out);
             }
@@ -679,21 +834,23 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
 			ctx->size = info.size;
 
-			/* Return the padding in a new buffer */
-			b = ngx_calloc_buf(r->pool);
-			if (b == NULL) {
-				return NGX_ERROR;
-			}
+			// /* Return the padding in a new buffer */
+			// b = ngx_calloc_buf(r->pool);
+			// if (b == NULL) {
+			// 	return NGX_ERROR;
+			// }
 
-			b->pos  = response;
-			b->last = b->pos + ctx->size;
+			// b->pos  = response;
+			// b->last = b->pos + ctx->size;
 
-			b->last_buf      = 1;
-			b->memory        = 1;
-			b->last_in_chain = 1;
+			// b->last_buf      = 1;
+			// b->memory        = 1;
+			// b->last_in_chain = 1;
 
-			out.buf  = b;
-			out.next = NULL;
+			// out.buf  = b;
+			// out.next = NULL;
+
+            send_response(r ,ctx , response, &out, true);
 
 			cl->buf->last_buf = 0;
 			cl->next          = &out;
@@ -826,22 +983,25 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 						response = init_response;
 					}
 
+                    ctx->size = main_info->size;
 
-					b = ngx_calloc_buf(r->pool);
+                    send_response(r ,ctx , response, &out, true);
 
-					if (b == NULL) {
-						return NGX_ERROR;
-					}
+					// b = ngx_calloc_buf(r->pool);
 
-					b->pos  = response;
-					b->last = b->pos + main_info->size;
+					// if (b == NULL) {
+					// 	return NGX_ERROR;
+					// }
 
-					b->last_buf      = 1;
-					b->memory        = 1;
-					b->last_in_chain = 1;
+					// b->pos  = response;
+					// b->last = b->pos + main_info->size;
 
-					out.buf  = b;
-					out.next = NULL;
+					// b->last_buf      = 1;
+					// b->memory        = 1;
+					// b->last_in_chain = 1;
+
+					// out.buf  = b;
+					// out.next = NULL;
 
 					return ngx_http_next_body_filter(r, &out);
 				}
@@ -850,89 +1010,4 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
     }
     return ngx_http_next_body_filter(r, in);
-}
-
-static void* ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf) {
-
-    ngx_http_alpaca_loc_conf_t* conf;
-
-    conf = ngx_pcalloc( cf->pool, sizeof(ngx_http_alpaca_loc_conf_t) );
-
-    if (conf == NULL) {
-        return NULL;
-    }
-
-    conf->prob_enabled         = NGX_CONF_UNSET;
-    conf->deter_enabled        = NGX_CONF_UNSET;
-    conf->obj_num              = NGX_CONF_UNSET_UINT;
-    conf->obj_size             = NGX_CONF_UNSET_UINT;
-    conf->max_obj_size         = NGX_CONF_UNSET_UINT;
-    conf->use_total_obj_size   = NGX_CONF_UNSET;
-    conf->obj_inlining_enabled = NGX_CONF_UNSET;
-
-    return conf;
-}
-
-static char* ngx_http_alpaca_merge_loc_conf(ngx_conf_t* cf, void* parent, void* child) {
-
-    ngx_http_alpaca_loc_conf_t* prev = parent;
-    ngx_http_alpaca_loc_conf_t* conf = child;
-
-    ngx_conf_merge_value     (conf->prob_enabled        , prev->prob_enabled        , 0 );
-    ngx_conf_merge_value     (conf->deter_enabled       , prev->deter_enabled       , 0 );
-    ngx_conf_merge_uint_value(conf->obj_num             , prev->obj_num             , 0 );
-    ngx_conf_merge_uint_value(conf->obj_size            , prev->obj_size            , 0 );
-    ngx_conf_merge_uint_value(conf->max_obj_size        , prev->max_obj_size        , 0 );
-    ngx_conf_merge_str_value (conf->dist_html_size      , prev->dist_html_size      , "");
-    ngx_conf_merge_str_value (conf->dist_obj_num        , prev->dist_obj_num        , "");
-    ngx_conf_merge_str_value (conf->dist_obj_size       , prev->dist_obj_size       , "");
-    ngx_conf_merge_value     (conf->use_total_obj_size  , prev->use_total_obj_size  , 0 );
-    ngx_conf_merge_value     (conf->obj_inlining_enabled, prev->obj_inlining_enabled, 0 );
-
-
-    /* Check if the directives' arguments are properly set */
-    if ( (conf->prob_enabled && conf->deter_enabled) ) {
-        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "Both probabilistic and deterministic ALPaCA are enabled." );
-        return NGX_CONF_ERROR;
-    }
-
-    if (conf->prob_enabled && conf->dist_obj_size.len == 0) {
-        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "dist_obj_size is needed in probabilistic mode" );
-        return NGX_CONF_ERROR;
-    }
-
-    if (conf->deter_enabled) {
-
-        if ( (conf->obj_size <= 0) || (conf->max_obj_size <= 0) ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "You can't provide non-positive values or no "
-                                                     "values at all for deterministic ALPaCA."      );
-            return NGX_CONF_ERROR;
-        }
-
-        if ( conf->max_obj_size < conf->obj_size ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Object size cannot be greater than max object "
-                                                     "size for deterministic ALPaCA."                 );
-            return NGX_CONF_ERROR;
-        }
-
-        if ( conf->max_obj_size % conf->obj_size != 0 ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Max object size has to be a multiple of object "
-                                                     "size for deterministic ALPaCA."                  );
-            return NGX_CONF_ERROR;
-        }
-    }
-    return NGX_CONF_OK;
-}
-
-static ngx_int_t ngx_http_alpaca_init(ngx_conf_t* cf) {
-
-    /* Install handler in header filter chain */
-    ngx_http_next_header_filter = ngx_http_top_header_filter;
-    ngx_http_top_header_filter  = ngx_http_alpaca_header_filter;
-
-    /* Install handler in body filter chain */
-    ngx_http_next_body_filter = ngx_http_top_body_filter;
-    ngx_http_top_body_filter  = ngx_http_alpaca_body_filter;
-
-    return NGX_OK;
 }
