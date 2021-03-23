@@ -233,7 +233,7 @@ static u_char* copy_ngx_str(ngx_str_t str, ngx_pool_t* pool) {
 
 static u_char* get_response(ngx_http_alpaca_ctx_t* ctx, ngx_http_request_t* r, ngx_chain_t* in , bool send) {
 
-    u_char *response;
+    u_char    *response;
     ngx_uint_t curr_chain_size = 0;
 
     for (ngx_chain_t *cl = in; cl; cl = cl->next)
@@ -286,7 +286,10 @@ static u_char* get_response(ngx_http_alpaca_ctx_t* ctx, ngx_http_request_t* r, n
     return NULL;
 }
 
-struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t* r, ngx_http_core_loc_conf_t *core_plcf, ngx_http_alpaca_loc_conf_t *plcf , ngx_http_alpaca_ctx_t* ctx){
+struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t         *r        ,
+                                               ngx_http_core_loc_conf_t   *core_plcf,
+                                               ngx_http_alpaca_loc_conf_t *plcf     ,
+                                               ngx_http_alpaca_ctx_t      *ctx       ) {
 
     struct MorphInfo *main_info = NULL;
 
@@ -315,16 +318,15 @@ struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t* r, ngx_http_c
     return main_info;
 }
 
-static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx, u_char* response, ngx_chain_t* out, bool in_memory){
+static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx, u_char* response, ngx_chain_t* out, bool in_memory) {
 
     ngx_buf_t   *b;
     // ngx_chain_t  out;
 
     b = ngx_calloc_buf(r->pool);
 
-    if (b == NULL) {
+    if (b == NULL)
         return NGX_ERROR;
-    }
 
     b->pos  = response;
     b->last = b->pos + ctx->size;
@@ -332,9 +334,8 @@ static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx
     b->last_buf      = 1;
     b->last_in_chain = 1;
 
-    if (in_memory){
-        b->memory        = 1;
-    }
+    if (in_memory)
+        b->memory = 1;
 
     out->buf  = b;
     out->next = NULL;
@@ -350,9 +351,8 @@ static void* ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf) {
 
     conf = ngx_pcalloc( cf->pool, sizeof(ngx_http_alpaca_loc_conf_t) );
 
-    if (conf == NULL) {
+    if (conf == NULL)
         return NULL;
-    }
 
     conf->prob_enabled         = NGX_CONF_UNSET;
     conf->deter_enabled        = NGX_CONF_UNSET;
@@ -507,8 +507,8 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
     u_char *response; // Response to be sent from the server
 
-    static               map req_mapper   = NULL;
-    static struct MorphInfo *main_info    = NULL;
+    static               map req_mapper = NULL;
+    static struct MorphInfo *main_info  = NULL;
 
     static int subreq_count = 0;
     static int subreq_tbd   = 0;
@@ -601,7 +601,6 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
     }
 
 
-
     /* If the response is an html, wait until the whole body has been *
      * captured and morph it according to ALPaCA                      */
     if ( is_html(r) && r->headers_out.status != 404 && r == r->main ) {
@@ -653,7 +652,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
             objects = get_required_css_files(main_info, &subreq_tbd);
 
-            if (subreq_tbd == 0){
+            if (subreq_tbd == 0) {
                 objects = get_html_required_files(main_info, &subreq_tbd);
             }
 
@@ -677,8 +676,8 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
                 ngx_str_t uri;
 
-                (&uri)->len = strlen((const char *)objects[i]);
-                (&uri)->data = (u_char *) objects[i];
+                (&uri)->len  = strlen( (const char *)objects[i] );
+                (&uri)->data = (u_char *)objects[i];
 
                 printf("SUB for %s %lu\n", uri.data , (unsigned long)uri.len);
                 ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
@@ -702,12 +701,12 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
             // strcpy(temp , token);
 
 			// Run alpaca
-			if (subreq_tbd == 0){
-						// Run alpaca
+			if (subreq_tbd == 0) {
+                // Run alpaca
 				if ( morph_html(main_info) ) {
 
-                    /* Copy the morphed html and free the memory that was
-					 * allocated in rust using the custom "free memory" funtion. */
+                    /* Copy the morphed html and free the memory that was       *
+					 * allocated in rust using the custom "free memory" funtion */
 					response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
 
                     ngx_memcpy(response, main_info->content, main_info->size);
@@ -736,7 +735,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					response = ctx->response;
 				}
 
-                send_response(r ,ctx , response, &out, true);
+                send_response(r, ctx, response, &out, true);
 
 				// /* Return the modified response in a new buffer */
 				// b = ngx_calloc_buf(r->pool);
@@ -756,12 +755,12 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				// out.next = NULL;
 
 				return ngx_http_next_body_filter(r, &out);
-            }
-            else {
+
+            } else {
 
                 ngx_http_set_ctx(r, NULL, ngx_http_alpaca_module);
 
-                send_response(r ,ctx , response, &out, false);
+                send_response(r, ctx, response, &out, false);
 
                 // b = ngx_calloc_buf(r->pool);
                 // if (b == NULL)
@@ -779,9 +778,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
         /* Do not call the next filter unless the whole html has been captured */
         return NGX_OK;
 
-    }
-	else if (is_paddable(r) && r == r->main) {
-
+    } else if (is_paddable(r) && r == r->main) {
 
 		// if (subreq_count != subreq_tbd){
 		// 	ngx_log_error( NGX_LOG_ERR                                            ,
@@ -816,9 +813,8 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				.size         = ctx->size,
 			};
 
-			//Get corresponding content for specific file
-			//And pass it to morph_object
-
+			// Get corresponding content for specific file
+			// And pass it to morph_object
 			if ( !morph_object(&info) ) {
 				// Call the next filter if something went wrong.
 				return ngx_http_next_body_filter(r, in);
@@ -858,27 +854,31 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 			return ngx_http_next_body_filter(r, in);
 		}
 		return ngx_http_next_body_filter(r, in);
-	}
-	else if (r != r->main){
-		if (is_css(r) && r->headers_out.status != 404){
-			if ((response = get_response(ctx , r , in , false)) != NULL){
+
+    } else if (r != r->main) {
+
+		if ( is_css(r) && r->headers_out.status != 404 ) {
+
+        	if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
+
 				subreq_count++;
 
 				request_data* req_data = malloc(sizeof(request_data));
+				req_data->content      = malloc(ctx->size);
 
-				req_data->content = malloc(ctx->size);
+                memset(req_data->content, 0, ctx->size);
+                memcpy(req_data->content, response, ctx->size);
 
-                memset (req_data->content, 0, ctx->size);
-                memcpy (req_data->content, response, ctx->size);
-				req_data->length = ctx->size;
+                req_data->length = ctx->size;
+
                 map_set(req_mapper, (char *)r->uri.data, req_data);
 
 				printf("FIRST %s %ld\n", r->uri.data , r->uri.len);
 
-				if (subreq_count == subreq_tbd){
+				if (subreq_count == subreq_tbd) {
 
 					int rc = NGX_OK;
-					u_char** objects = NULL;
+					u_char **objects = NULL;
 					ngx_http_request_t *sr = NULL;
 
 					inline_css_content(main_info , req_mapper);
@@ -887,15 +887,15 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					subreq_count = 0;
 
 					printf("Required files\n");
-					for (int i = 0 ; i < subreq_tbd ; i++){
+					for (int i = 0 ; i < subreq_tbd ; i++) {
 						printf("%s %ld\n",objects[i] , strlen((const char *)objects[i]));
 					}
 
-					for (int i = 0; rc == NGX_OK && i < subreq_tbd ; i++){
+					for (int i=0 ; rc == NGX_OK && i < subreq_tbd ; i++) {
 						ngx_str_t uri;
 
-						(&uri)->len = strlen((const char *)objects[i]);
-						(&uri)->data = (u_char *) objects[i];
+						(&uri)->len  = strlen( (const char *)objects[i] );
+						(&uri)->data = (u_char *)objects[i];
 
 						printf("SUB for %s %ld\n",uri.data , uri.len);
 						ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
@@ -924,37 +924,37 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					// return ngx_http_next_body_filter(r, &out);
 				}
 			}
-  		}
-		else {
+
+        } else {
 
             if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
 
-
 				request_data* req_data = malloc(sizeof(request_data));
-
-				req_data->content = malloc(ctx->size);
+				req_data->content      = malloc(ctx->size);
 
                 memset (req_data->content, 0, ctx->size);
                 memcpy (req_data->content, response, ctx->size);
-				req_data->length = ctx->size;
+
+                req_data->length = ctx->size;
+
                 map_set(req_mapper, (char *)r->uri.data, req_data);
 
 				printf("SECOND %s %ld\n", r->uri.data , r->uri.len);
 
                 subreq_count++;
 
-				if (subreq_count == subreq_tbd){
+				if (subreq_count == subreq_tbd) {
 
 					printf("FINAL\n");
 
 					u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char) + 1);
-					strcpy((char *)init_response , (char *)main_info->content);
+					strcpy( (char *)init_response, (char *)main_info->content );
 
 
-					if ( morph_html_from_content(main_info , req_mapper) ) {
+					if ( morph_html_from_content(main_info, req_mapper) ) {
 
-						/* Copy the morphed html and free the memory that was
-							* allocated in rust using the custom "free memory" funtion. */
+						/* Copy the morphed html and free the memory that was      *
+						* allocated in rust using the custom "free memory" funtion */
 						response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
 
 						ngx_memcpy(response, main_info->content, main_info->size);
@@ -972,20 +972,19 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 						// original content.
 
 						ngx_log_error( NGX_LOG_ERR                                            ,
-										r->connection->log                                     ,
-										0                                                      ,
-										"[Alpaca filter]: could not process html content. If "
-										"you use proxy_pass, set proxy_set_header "
-										"Accept-Encoding \"\" so that the upstream server "
-										"returns raw html, "
-										);
-
+                                       r->connection->log                                     ,
+                                       0                                                      ,
+                                       "[Alpaca filter]: could not process html content. If "
+                                       "you use proxy_pass, set proxy_set_header "
+                                       "Accept-Encoding \"\" so that the upstream server "
+                                       "returns raw html, "
+									 );
 						response = init_response;
 					}
 
                     ctx->size = main_info->size;
 
-                    send_response(r ,ctx , response, &out, true);
+                    send_response(r, ctx, response, &out, true);
 
 					// b = ngx_calloc_buf(r->pool);
 
@@ -1007,7 +1006,6 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				}
 			}
 		}
-
     }
     return ngx_http_next_body_filter(r, in);
 }
