@@ -16,3 +16,5 @@ pub mod distribution;
 pub mod dom;
 pub mod morphing;
 pub mod pad;
+pub mod utils;
+pub mod inlining;

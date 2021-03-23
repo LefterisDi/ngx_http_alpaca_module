@@ -1,18 +1,13 @@
 //! Contains main morphing routines.
-use aux::stringify_error;
-use base64;
 use deterministic::*;
 use distribution::{sample_ge, sample_ge_many, sample_pair_ge, Dist};
 use dom;
-use dom::{node_get_attribute, Map, Object, ObjectKind};
+use dom::{Map, Object, ObjectKind};
 use kuchiki::NodeRef;
-use libc;
 use pad;
 use pad::{get_html_padding, get_object_padding};
-use std::ffi::CStr;
-use std::ffi::CString;
-use std::fs;
-use std::os::raw::c_int;
+use utils::{keep_local_objects,document_to_c,content_to_c,c_string_to_str,insert_objects_refs};
+use inlining::{make_objects_inlined};
 
 // use image::gif::{GifDecoder, GifEncoder};
 // use image::{ImageDecoder, AnimationDecoder};
@@ -21,10 +16,10 @@ use std::os::raw::c_int;
 #[repr(C)]
 pub struct MorphInfo {
     // Request info
-    content              : *const u8, // u8 = uchar
-    size                 : usize    ,
+    pub content          : *const u8, // u8 = uchar
+    pub size             : usize    ,
     root                 : *const u8,
-    uri                  : *const u8,
+    pub uri              : *const u8,
     http_host            : *const u8,
     alias                : usize    ,
     query                : *const u8, // part after ?
@@ -46,159 +41,8 @@ pub struct MorphInfo {
     obj_inlining_enabled : bool     ,
 }
 
-fn keep_local_objects(objects: &mut Vec<Object>) {
-    objects.retain(|obj| !obj.uri.contains("http:") && !obj.uri.contains("https:"))
-}
 
-fn get_file_extension(file_name: &String) -> String {
-    let mut split: Vec<&str> = file_name.split(".").collect();
-    split.pop().unwrap().to_owned()
-}
 
-fn get_img_format_and_ext(file_full_path: &String, file_name: &String) -> String {
-    let base_img = fs::read(file_full_path).expect("Unable to read file");
-
-    let extent = get_file_extension(&file_name);
-
-    let ext: String;
-
-    match extent.as_str() {
-        "jpg" | "jpeg" => {
-            ext = String::from("jpeg");
-        }
-        "png" => {
-            ext = String::from("png");
-        }
-        "gif" => {
-            ext = String::from("gif");
-        }
-        _ => panic!("unknown image type"),
-    };
-
-    let res_base64 = base64::encode(&base_img);
-
-    let temp = format!("data:image/{};charset=utf-8;base64,{}", ext, res_base64);
-
-    temp
-}
-
-#[no_mangle]
-pub extern "C" fn get_html_required_files( pinfo: *mut MorphInfo, length: *mut c_int ) -> *mut *mut libc::c_char {
-
-    std::env::set_var("RUST_BACKTRACE", "full");
-
-    let info = unsafe { &mut *pinfo };
-    let uri  = c_string_to_str(info.uri).unwrap();
-
-    // /* Convert arguments into &str */
-    let html = match c_string_to_str(info.content) {
-
-        Ok (s) => s,
-        Err(e) => {
-            eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-            return std::ptr::null_mut(); // return NULL pointer if html cannot be converted to a string
-        }
-    };
-
-    let document    = dom::parse_html(html);
-
-    let mut objects = dom::parse_object_names(&document); // Vector of objects found in the html.
-
-    let mut object_uris = vec![];
-    for obj in &mut *objects {
-        object_uris.push( CString::new( format!("{}", obj.to_owned()) ).unwrap() );
-    }
-
-    let mut out = object_uris.into_iter()
-                             .map(|s| s.into_raw())
-                             .collect::<Vec<_>>();
-
-    out.shrink_to_fit();
-
-    let len = out.len();
-    let ptr = out.as_mut_ptr();
-
-    std::mem::forget(out);
-
-    unsafe {
-        std::ptr::write(length, len as c_int);
-    }
-
-    ptr
-}
-
-#[no_mangle]
-pub extern "C" fn get_required_css_files( pinfo: *mut MorphInfo, length: *mut c_int ) -> *mut *mut libc::c_char {
-
-    std::env::set_var("RUST_BACKTRACE", "full");
-
-    let info = unsafe { &mut *pinfo };
-    let uri  = c_string_to_str(info.uri).unwrap();
-
-    // /* Convert arguments into &str */
-    let html = match c_string_to_str(info.content) {
-
-        Ok (s) => s,
-        Err(e) => {
-            eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-            return std::ptr::null_mut(); // return NULL pointer if html cannot be converted to a string
-        }
-    };
-
-    let document    = dom::parse_html(html);
-
-    let mut objects = dom::parse_css_names(&document); // Vector of objects found in the html.
-
-    let mut object_uris = vec![];
-    for obj in &mut *objects {
-        object_uris.push(CString::new(format!("{}", obj.to_owned())).unwrap());
-    }
-
-    let mut out = object_uris.into_iter()
-                             .map(|s| s.into_raw())
-                             .collect::<Vec<_>>();
-
-    out.shrink_to_fit();
-
-    let len = out.len();
-    let ptr = out.as_mut_ptr();
-
-    std::mem::forget(out);
-
-    unsafe {
-        std::ptr::write(length, len as c_int);
-    }
-
-    ptr
-}
-
-#[no_mangle]
-pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
-
-    std::env::set_var("RUST_BACKTRACE", "full");
-
-    let info = unsafe { &mut *pinfo };
-
-    let uri  = c_string_to_str(info.uri).unwrap();
-
-    let html = match c_string_to_str(info.content) {
-
-        Ok (s) => s,
-        Err(e) => {
-            eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-            return 0; // return NULL pointer if html cannot be converted to a string
-        }
-    };
-
-    let document = dom::parse_html(html);
-
-    // Vector of objects found in the html.
-    dom::parse_css_and_inline(&document, req_mapper);
-
-    let content = dom::serialize_html(&document);
-
-    return content_to_c(content, info);
-}
 
 #[no_mangle]
 pub extern "C" fn morph_html_from_content(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
@@ -349,87 +193,6 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo) -> u8 {
     return content_to_c(content, info);
 }
 
-// Inserts the ALPaCA GET parameters to the html objects, and adds the fake objects to the html.
-fn make_objects_inlined(objects: &mut Vec<Object>, root: &str, n: usize) -> Result<(), String> {
-
-    // Slice which contains initial objects
-    let obj_for_inlining    = &objects[0..n];
-    let mut objects_inlined = Vec::new();
-    // let rest_obj = &objects[n..]; // Slice which contains ALPaCA objects
-
-    for (i, object) in obj_for_inlining.iter().enumerate() {
-
-        // Ignore objects without target size
-        println!("OBJECT ITER {}", i);
-
-        if object.target_size.is_none() {
-            println!("OBJECT NO TARGET SIZE {}", object.uri);
-        }
-
-        println!("{}", object.uri);
-
-        let node = object.node.as_ref().unwrap();
-
-        let attr = match node.as_element()
-                             .unwrap()
-                             .name
-                             .local
-                             .to_lowercase()
-                             .as_ref()
-        {
-            "img" | "script" => "src",
-            "link"           => "href",
-            "style"          => "style",
-            _                => panic!("shouldn't happen"),
-        };
-
-        let path: String;
-
-        if attr != "style" {
-
-            path = match node_get_attribute(node, attr) {
-                Some(p) if p != "" && !p.starts_with("data:") => p,
-                _ => continue,
-            };
-
-        } else {
-            path = object.uri.clone();
-        }
-
-        let temp = format!("{}/{}", root, path.as_str());
-
-        println!("{}", temp);
-
-        let temp = get_img_format_and_ext(&temp, &object.uri);
-
-        if attr != "style" {
-
-            dom::node_set_attribute(node, attr, temp);
-            objects_inlined.push(i);
-
-        } else {
-
-            let last_child   = node.last_child().unwrap();
-            let refc         = last_child.into_text_ref().unwrap();
-
-            let mut refc_val = refc.borrow().clone();
-
-            refc_val = refc_val.replace(&object.uri, &temp);
-
-            // println!("{}", refc_val);
-
-            *refc.borrow_mut() = refc_val;
-
-            objects_inlined.push(i);
-        }
-    }
-
-    for _ in objects_inlined.clone() {
-        objects.remove(objects_inlined.pop().unwrap());
-    }
-
-    Ok(())
-}
 
 // Returns the object's padding.
 #[no_mangle]
@@ -452,18 +215,6 @@ pub extern "C" fn morph_object(pinfo: *mut MorphInfo) -> u8 {
     let padding = get_object_padding(kind, info.size, target_size); // Get the padding for the object.
 
     return content_to_c(padding, info);
-}
-
-// Frees memory allocated in rust.
-#[no_mangle]
-pub extern "C" fn free_memory(data: *mut u8, size: usize) {
-
-    let s = unsafe { std::slice::from_raw_parts_mut(data, size) };
-    let s = s.as_mut_ptr();
-
-    unsafe {
-        Box::from_raw(s);
-    }
 }
 
 fn morph_probabilistic_with_inl( document   : &NodeRef        ,
@@ -859,122 +610,4 @@ fn morph_deterministic(
     let html_min_size = content.len() + 7; // Plus 7 because of the comment characters.
 
     Ok(get_multiple(info.obj_size, html_min_size))
-}
-
-// Inserts the ALPaCA GET parameters to the html objects, and adds the fake objects to the html.
-fn insert_objects_refs(document: &NodeRef, objects: &[Object], n: usize) -> Result<(), String> {
-    let init_obj = &objects[0..n]; // Slice which contains initial objects
-    let padding_obj = &objects[n..]; // Slice which contains ALPaCA objects
-
-    println!("TO BE PADDED {}", n);
-
-    for object in init_obj {
-        // Ignore objects without target size
-        if !object.target_size.is_none() {
-            append_ref(&object);
-        }
-    }
-
-    add_padding_objects(&document, padding_obj);
-
-    Ok(())
-}
-
-// Appends the ALPaCA GET parameter to an html element
-fn append_ref(object: &Object) {
-    // Construct the link with the appended new parameter
-    let mut new_link = String::from("alpaca-padding=");
-
-    new_link.push_str(&(object.target_size.unwrap().to_string())); // Append the target size
-
-    let node = object.node.as_ref().unwrap();
-    let attr = match node
-        .as_element()
-        .unwrap()
-        .name
-        .local
-        .to_lowercase()
-        .as_ref()
-    {
-        "img" | "script" => "src",
-        "link" => "href",
-        "style" => "style",
-        _ => panic!("shouldn't happen"),
-    };
-
-    // Check if there is already a GET parameter in the file path
-    let prefix = if object.uri.contains("?") { '&' } else { '?' };
-
-    new_link.insert(0, prefix);
-    new_link.insert_str(0, &object.uri);
-
-    if attr != "style" {
-        dom::node_set_attribute(node, attr, new_link);
-    } else {
-        let last_child = node.last_child().unwrap();
-        let refc = last_child.into_text_ref().unwrap();
-
-        let mut refc_val = refc.borrow().clone();
-
-        refc_val = refc_val.replace(&object.uri, &new_link);
-
-        *refc.borrow_mut() = refc_val;
-
-        // println!("{}", refc.borrow());
-    }
-}
-
-// Adds the fake ALPaCA objects in the end of the html body
-fn add_padding_objects(document: &NodeRef, objects: &[Object]) {
-    // Append the objects either to the <body> tag, if exists, otherwise
-    // to the whole document
-    let node_data; // to outlive the match
-    let node = match document.select("body").unwrap().next() {
-        Some(nd) => {
-            node_data = nd;
-            node_data.as_node()
-        }
-        None => document,
-    };
-
-    let mut i = 1;
-
-    for object in objects {
-        let elem = dom::create_element("img");
-
-        dom::node_set_attribute(
-            &elem,
-            "src",
-            format!(
-                "/__alpaca_fake_image.png?alpaca-padding={}&i={}",
-                object.target_size.unwrap(),
-                i
-            ),
-        );
-        dom::node_set_attribute(&elem, "style", String::from("visibility:hidden"));
-
-        node.append(elem);
-        i += 1;
-    }
-}
-
-// Builds the returned html, stores its size in html_size and returns a
-// 'forgotten' unsafe pointer to the html, for returning to C
-fn document_to_c(document: &NodeRef, info: &mut MorphInfo) -> u8 {
-    let content = dom::serialize_html(document);
-    return content_to_c(content, info);
-}
-
-fn content_to_c(content: Vec<u8>, info: &mut MorphInfo) -> u8 {
-    info.size = content.len();
-
-    let mut buf = content.into_boxed_slice();
-
-    info.content = buf.as_mut_ptr();
-    std::mem::forget(buf);
-    1
-}
-
-fn c_string_to_str<'a>(s: *const u8) -> Result<&'a str, String> {
-    return stringify_error(unsafe { CStr::from_ptr(s as *const i8) }.to_str());
 }

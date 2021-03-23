@@ -315,7 +315,7 @@ struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t* r, ngx_http_c
     return main_info;
 }
 
-static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx, u_char* response, ngx_chain_t* out, bool in_memory){
+static ngx_int_t send_response(ngx_http_request_t* r, ngx_uint_t resp_size, u_char* response, ngx_chain_t* out, bool in_memory){
 
     ngx_buf_t   *b;
     // ngx_chain_t  out;
@@ -327,7 +327,7 @@ static ngx_int_t send_response(ngx_http_request_t* r, ngx_http_alpaca_ctx_t* ctx
     }
 
     b->pos  = response;
-    b->last = b->pos + ctx->size;
+    b->last = b->pos + resp_size;
 
     b->last_buf      = 1;
     b->last_in_chain = 1;
@@ -577,9 +577,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
         free_memory(info.content, info.size);
 
-        ctx->size = info.size;
-
-        send_response(r ,ctx , response, &out, true);
+        send_response(r ,info.size , response, &out, true);
 
         // /* Return the padding in a new buffer */
         // b = ngx_calloc_buf(r->pool);
@@ -736,7 +734,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					response = ctx->response;
 				}
 
-                send_response(r ,ctx , response, &out, true);
+                send_response(r ,ctx->size , response, &out, true);
 
 				// /* Return the modified response in a new buffer */
 				// b = ngx_calloc_buf(r->pool);
@@ -761,7 +759,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
                 ngx_http_set_ctx(r, NULL, ngx_http_alpaca_module);
 
-                send_response(r ,ctx , response, &out, false);
+                send_response(r ,ctx->size , response, &out, false);
 
                 // b = ngx_calloc_buf(r->pool);
                 // if (b == NULL)
@@ -832,8 +830,6 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
 			free_memory(info.content, info.size);
 
-			ctx->size = info.size;
-
 			// /* Return the padding in a new buffer */
 			// b = ngx_calloc_buf(r->pool);
 			// if (b == NULL) {
@@ -850,7 +846,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 			// out.buf  = b;
 			// out.next = NULL;
 
-            send_response(r ,ctx , response, &out, true);
+            send_response(r ,info.size , response, &out, true);
 
 			cl->buf->last_buf = 0;
 			cl->next          = &out;
@@ -983,9 +979,8 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 						response = init_response;
 					}
 
-                    ctx->size = main_info->size;
 
-                    send_response(r ,ctx , response, &out, true);
+                    send_response(r ,main_info->size , response, &out, true);
 
 					// b = ngx_calloc_buf(r->pool);
 
