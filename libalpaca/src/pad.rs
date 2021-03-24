@@ -57,7 +57,7 @@ pub fn get_object_padding(kind: ObjectKind, size: usize, target_size: usize) -> 
                 // Consider the 4 additional comment-bytes.
                 return Vec::new();
             }
-            padding = get_css_padding(pad_len);
+            padding  = get_css_padding(pad_len);
         }
         _ => padding = get_binary_padding(pad_len),
     };

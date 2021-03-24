@@ -1,13 +1,13 @@
 //! Contains main morphing routines.
 use deterministic::*;
 use distribution::{sample_ge, sample_ge_many, sample_pair_ge, Dist};
-use dom;
 use dom::{Map, Object, ObjectKind};
-use kuchiki::NodeRef;
-use pad;
-use pad::{get_html_padding, get_object_padding};
-use utils::{keep_local_objects,document_to_c,content_to_c,c_string_to_str,insert_objects_refs};
+use dom;
 use inlining::{make_objects_inlined};
+use kuchiki::NodeRef;
+use pad::{get_html_padding, get_object_padding};
+use pad;
+use utils::{keep_local_objects,document_to_c,content_to_c,c_string_to_str,insert_objects_refs};
 
 // use image::gif::{GifDecoder, GifEncoder};
 // use image::{ImageDecoder, AnimationDecoder};
@@ -42,15 +42,14 @@ pub struct MorphInfo {
 }
 
 
-
-
 #[no_mangle]
-pub extern "C" fn morph_html_from_content(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
+// It samples a new page using probabilistic morphing, changes
+// the references to its objects accordingly, and pads it
+pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
 
     std::env::set_var("RUST_BACKTRACE", "full");
 
     let info = unsafe { &mut *pinfo };
-
     let uri  = c_string_to_str(info.uri).unwrap();
 
     let html = match c_string_to_str(info.content) {
@@ -64,105 +63,28 @@ pub extern "C" fn morph_html_from_content(pinfo: *mut MorphInfo, req_mapper: Map
 
     let document = dom::parse_html(html);
 
-    // Vector of objects found in the html.
+    // Vector of objects found in the html
     let mut objects = dom::parse_html_objects_from_content(&document, req_mapper);
-
-    keep_local_objects(&mut objects);
-
-    let mut orig_n = objects.len();
-
-    let target_size = match if info.probabilistic != 0 {
-
-        if info.obj_inlining_enabled == true {
-            morph_probabilistic_with_inl(&document, &mut objects, &info, &mut orig_n)
-        } else {
-            morph_probabilistic(&document, &mut objects, &info)
-        }
-
-    } else {
-
-        if info.obj_inlining_enabled == true {
-            morph_deterministic_with_inl(&document, &mut objects, &info, &mut orig_n)
-        } else {
-            morph_deterministic(&document, &mut objects, &info)
-        }
-
-    } {
-        Ok (s) => s,
-        Err(e) => {
-            eprint!("libalpaca: cannot morph: {}\n", e);
-            return document_to_c(&document, info);
-        }
-    };
-
-    match insert_objects_refs(&document, &objects, orig_n) {
-
-        Ok (_) => {}
-        Err(e) => {
-            eprint!("libalpaca: insert_objects_refs failed: {}\n", e);
-            return document_to_c(&document, info);
-        }
-    }
-
-    let mut content = dom::serialize_html(&document);
-
-    // Pad the html to the target size.
-    get_html_padding(&mut content, target_size);
-
-    return content_to_c(content, info);
-}
-
-// It samples a new page using probabilistic morphing, changes the
-// references to its objects accordingly, and pads it.
-#[no_mangle]
-pub extern "C" fn morph_html(pinfo: *mut MorphInfo) -> u8 {
-
-    std::env::set_var("RUST_BACKTRACE", "full");
-
-    let info      = unsafe { &mut *pinfo };
-
-    let root      = c_string_to_str(info.root)     .unwrap();
-    let uri       = c_string_to_str(info.uri)      .unwrap();
-    let http_host = c_string_to_str(info.http_host).unwrap();
-
-    // /* Convert arguments into &str */
-    let html = match c_string_to_str(info.content) {
-
-        Ok (s) => s,
-        Err(e) => {
-            eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-            return 0; // return NULL pointer if html cannot be converted to a string
-        }
-    };
-
-    let document  = dom::parse_html(html);
-
-    let full_root = String::from(root).replace("$http_host", http_host);
-
-    // Vector of objects found in the html.
-    let mut objects = dom::parse_objects(&document, full_root.as_str(), uri, info.alias);
 
     keep_local_objects(&mut objects);
 
     // Number of original objects
     let mut orig_n = objects.len();
 
-    println!("ORIG {}", orig_n);
-
     let target_size = match if info.probabilistic != 0 {
 
         if info.obj_inlining_enabled == true {
-            morph_probabilistic_with_inl(&document, &mut objects, &info, &mut orig_n)
+            morph_probabilistic_with_inl( &document, &mut objects, &info, &mut orig_n )
         } else {
-            morph_probabilistic(&document, &mut objects, &info)
+            morph_probabilistic( &document, &mut objects, &info )
         }
 
     } else {
 
         if info.obj_inlining_enabled == true {
-            morph_deterministic_with_inl(&document, &mut objects, &info, &mut orig_n)
+            morph_deterministic_with_inl( &document, &mut objects, &info, &mut orig_n )
         } else {
-            morph_deterministic(&document, &mut objects, &info)
+            morph_deterministic( &document, &mut objects, &info )
         }
 
     } {
@@ -172,8 +94,6 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo) -> u8 {
             return document_to_c(&document, info);
         }
     };
-
-    println!("NEW OBJ NUM {}", orig_n);
 
     // Insert refs and add padding
     match insert_objects_refs(&document, &objects, orig_n) {
@@ -193,6 +113,82 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo) -> u8 {
     return content_to_c(content, info);
 }
 
+/*
+    #[no_mangle]
+    pub extern "C" fn morph_html(pinfo: *mut MorphInfo) -> u8 {
+
+        std::env::set_var("RUST_BACKTRACE", "full");
+
+        let info      = unsafe { &mut *pinfo };
+
+        let root      = c_string_to_str(info.root)     .unwrap();
+        let uri       = c_string_to_str(info.uri)      .unwrap();
+        let http_host = c_string_to_str(info.http_host).unwrap();
+
+        // Convert arguments into &str
+        let html = match c_string_to_str(info.content) {
+
+            Ok (s) => s,
+            Err(e) => {
+                eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
+                return 0; // return NULL pointer if html cannot be converted to a string
+            }
+        };
+
+        let document  = dom::parse_html(html);
+
+        let full_root = String::from(root).replace("$http_host", http_host);
+
+        // Vector of objects found in the html
+        let mut objects = dom::parse_objects(&document, full_root.as_str(), uri, info.alias);
+
+        keep_local_objects(&mut objects);
+
+        // Number of original objects
+        let mut orig_n = objects.len();
+
+        let target_size = match if info.probabilistic != 0 {
+
+            if info.obj_inlining_enabled == true {
+                morph_probabilistic_with_inl( &document, &mut objects, &info, &mut orig_n )
+            } else {
+                morph_probabilistic( &document, &mut objects, &info )
+            }
+
+        } else {
+
+            if info.obj_inlining_enabled == true {
+                morph_deterministic_with_inl( &document, &mut objects, &info, &mut orig_n )
+            } else {
+                morph_deterministic( &document, &mut objects, &info )
+            }
+
+        } {
+            Ok (s) => s,
+            Err(e) => {
+                eprint!("libalpaca: cannot morph: {}\n", e);
+                return document_to_c(&document, info);
+            }
+        };
+
+        // Insert refs and add padding
+        match insert_objects_refs(&document, &objects, orig_n) {
+
+            Ok (_) => {}
+            Err(e) => {
+                eprint!("libalpaca: insert_objects_refs failed: {}\n", e);
+                return document_to_c(&document, info);
+            }
+        }
+
+        let mut content = dom::serialize_html(&document);
+
+        // Pad the html to the target size.
+        get_html_padding(&mut content, target_size);
+
+        return content_to_c(content, info);
+    }
+*/
 
 // Returns the object's padding.
 #[no_mangle]

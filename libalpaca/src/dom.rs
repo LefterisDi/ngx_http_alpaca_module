@@ -449,7 +449,7 @@ pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
 	}
 }
 
-pub fn parse_html_objects_from_content(document: &NodeRef, req_mapper : Map) -> Vec<Object> {
+pub fn parse_html_objects_from_content(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 	let mut objects: Vec<Object> = Vec::with_capacity(10);
 	let mut found_favicon        = false;
 
@@ -479,7 +479,7 @@ pub fn parse_html_objects_from_content(document: &NodeRef, req_mapper : Map) -> 
 
 		println!("REL {}",relative);
 
-		let res = get_map_element(req_mapper,relative);
+		let res = get_map_element(req_mapper, relative);
 
 		// let mut pos = 0;
     	// let mut buffer = File::create("f.gif").unwrap();

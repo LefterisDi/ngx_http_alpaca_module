@@ -73,13 +73,11 @@ typedef struct {
 
 // -----------------------------------------------------------------------------------------------------
 
-u_char   morph_html             (struct MorphInfo* info);
-u_char   morph_object           (struct MorphInfo* info);
-u_char   inline_css_content     (struct MorphInfo* info , map req_mapper);
 u_char** get_html_required_files(struct MorphInfo* info , int* length);
 u_char** get_required_css_files (struct MorphInfo* info , int* length);
-u_char inline_css_content(struct MorphInfo* info   ,map req_mapper);
-u_char morph_html_from_content(struct MorphInfo* info   ,map req_mapper);
+u_char   inline_css_content     (struct MorphInfo* info , map req_mapper);
+u_char   morph_html             (struct MorphInfo* info , map req_mapper);
+u_char   morph_object           (struct MorphInfo* info);
 
 
 void free_memory(u_char* data, ngx_uint_t size);
@@ -701,7 +699,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 			// Run alpaca
 			if (subreq_tbd == 0) {
                 // Run alpaca
-				if ( morph_html(main_info) ) {
+				if ( morph_html(main_info, req_mapper) ) {
 
                     /* Copy the morphed html and free the memory that was       *
 					 * allocated in rust using the custom "free memory" funtion */
@@ -947,7 +945,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 					strcpy( (char *)init_response, (char *)main_info->content );
 
 
-					if ( morph_html_from_content(main_info, req_mapper) ) {
+					if ( morph_html(main_info, req_mapper) ) {
 
 						/* Copy the morphed html and free the memory that was      *
 						* allocated in rust using the custom "free memory" funtion */
