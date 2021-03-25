@@ -107,7 +107,7 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
     }
 
     for _ in objects_inlined.clone() {
-        objects.remove(objects_inlined.pop().unwrap());
+        objects.remove( objects_inlined.pop().unwrap() );
     }
 
     Ok(())

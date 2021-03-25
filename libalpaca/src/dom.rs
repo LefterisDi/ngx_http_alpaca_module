@@ -541,7 +541,6 @@ pub fn parse_objects(document: &NodeRef, root: &str, uri: &str, alias: usize) ->
 	// - <link rel="stylesheet">
 	// - <script src="...">
 
-
 	for node_data in document.select("link").unwrap() {
 
 		let node      = node_data.as_node();
@@ -558,8 +557,8 @@ pub fn parse_objects(document: &NodeRef, root: &str, uri: &str, alias: usize) ->
 
 		let temp = format!( "{}/{}" , root , path.as_str() );
 		let res  = match copy_file_to_string(&temp) {
-			Ok(res)  => res,
-        	Err(_)   => continue,
+			Ok(res) => res     ,
+        	Err(_)  => continue,
 		};
 
 		// println!("{}" , res);

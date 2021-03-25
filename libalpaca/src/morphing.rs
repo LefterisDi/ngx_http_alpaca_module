@@ -1,13 +1,20 @@
 //! Contains main morphing routines.
 use deterministic::*;
-use distribution::{sample_ge, sample_ge_many, sample_pair_ge, Dist};
+use distribution::{ sample_ge     ,
+                    sample_ge_many,
+                    sample_pair_ge,
+                    Dist            };
 use dom::{Map, Object, ObjectKind};
 use dom;
-use inlining::{make_objects_inlined};
+use inlining::{ make_objects_inlined };
 use kuchiki::NodeRef;
-use pad::{get_html_padding, get_object_padding};
+use pad::{ get_html_padding, get_object_padding };
 use pad;
-use utils::{keep_local_objects,document_to_c,content_to_c,c_string_to_str,insert_objects_refs};
+use utils::{ keep_local_objects ,
+             document_to_c      ,
+             content_to_c       ,
+             c_string_to_str    ,
+             insert_objects_refs };
 
 // use image::gif::{GifDecoder, GifEncoder};
 // use image::{ImageDecoder, AnimationDecoder};
@@ -16,28 +23,28 @@ use utils::{keep_local_objects,document_to_c,content_to_c,c_string_to_str,insert
 #[repr(C)]
 pub struct MorphInfo {
     // Request info
+    alias                : usize    ,
+    content_type         : *const u8,
+    http_host            : *const u8,
     pub content          : *const u8, // u8 = uchar
     pub size             : usize    ,
-    root                 : *const u8,
     pub uri              : *const u8,
-    http_host            : *const u8,
-    alias                : usize    ,
     query                : *const u8, // part after ?
-    content_type         : *const u8,
+    root                 : *const u8,
 
     // for probabilistic
-    probabilistic        : usize    , // boolean
-    use_total_obj_size   : usize    ,
     dist_html_size       : *const u8,
     dist_obj_num         : *const u8,
     dist_obj_size        : *const u8,
+    probabilistic        : usize    , // boolean
+    use_total_obj_size   : usize    ,
 
     // for deterministic
+    max_obj_size         : usize    ,
     obj_num              : usize    ,
     obj_size             : usize    ,
-    max_obj_size         : usize    ,
 
-    //for object inlining
+    // for object inlining
     obj_inlining_enabled : bool     ,
 }
 
@@ -81,11 +88,7 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
 
     } else {
 
-        if info.obj_inlining_enabled == true {
-            morph_deterministic_with_inl( &document, &mut objects, &info, &mut orig_n )
-        } else {
-            morph_deterministic( &document, &mut objects, &info )
-        }
+        morph_deterministic( &document, &mut objects, &info, &mut orig_n )
 
     } {
         Ok (s) => s,
@@ -388,10 +391,10 @@ fn morph_probabilistic_with_inl( document   : &NodeRef        ,
     Ok(target_html_size)
 }
 
-fn morph_deterministic_with_inl( document   : &NodeRef        ,
-                                 objects    : &mut Vec<Object>,
-                                 info       : &MorphInfo      ,
-                                 new_orig_n : &mut usize       ) -> Result<usize, String>
+fn morph_deterministic( document   : &NodeRef        ,
+                        objects    : &mut Vec<Object>,
+                        info       : &MorphInfo      ,
+                        new_orig_n : &mut usize       ) -> Result<usize, String>
 {
     // We'll have at least as many objects as the original ones
     let initial_obj_no = objects.len();
@@ -401,7 +404,14 @@ fn morph_deterministic_with_inl( document   : &NodeRef        ,
     // Target size for each objects is a multiple of "obj_size" and bigger
     // than the object's  original size.
     // let target_count = get_multiple(info.obj_num, initial_obj_no);
-    let target_count = info.obj_num;
+
+    let target_count;
+
+    if info.obj_inlining_enabled {
+        target_count = info.obj_num;
+    } else {
+        target_count = get_multiple(info.obj_num, initial_obj_no);
+    }
 
     for i in 0..objects.len() {
 
@@ -416,7 +426,7 @@ fn morph_deterministic_with_inl( document   : &NodeRef        ,
         objects[i].target_size = Some(obj_target_size);
     }
 
-    if target_count < initial_obj_no {
+    if target_count < initial_obj_no && info.obj_inlining_enabled {
 
         let root      = c_string_to_str(info.root).unwrap();
         let http_host = c_string_to_str(info.http_host).unwrap();
@@ -432,13 +442,13 @@ fn morph_deterministic_with_inl( document   : &NodeRef        ,
 
         let fake_objects_sizes: Vec<usize>;
 
-        let fake_objects_count = target_count - initial_obj_no; // The number of fake objects.
+        let fake_objects_count = target_count - initial_obj_no; // The number of fake objects
 
         // To get the target size of each fake object, sample uniformly a multiple
-        // of "obj_size" which is smaller than "max_obj_size".
+        // of "obj_size" which is smaller than "max_obj_size"
         fake_objects_sizes = get_multiples_in_range(info.obj_size, info.max_obj_size, fake_objects_count)?;
 
-        // Add the fake objects to the vector.
+        // Add the fake objects to the vector
         for i in 0..fake_objects_count {
             objects.push( Object::fake_image(fake_objects_sizes[i]) );
         }
@@ -464,7 +474,8 @@ fn morph_probabilistic( document: &NodeRef        ,
 
     // Sample target number of objects (count)
     let mut target_obj_num = match sample_ge(&dist_obj_num, initial_obj_num) {
-        Ok(c) => c,
+
+        Ok (c) => c,
         Err(e) => {
             eprint!(
                 "libalpaca: could not sample object number ({}), leaving unchanged ({})\n",
@@ -484,6 +495,7 @@ fn morph_probabilistic( document: &NodeRef        ,
 
     // Find object sizes
     if info.use_total_obj_size == 0 {
+
         // Sample each object size from dist_obj_size.
         target_html_size = sample_ge(&dist_html_size, min_html_size)?;
 
@@ -561,49 +573,4 @@ fn morph_probabilistic( document: &NodeRef        ,
         }
     }
     Ok(target_html_size)
-}
-
-fn morph_deterministic(
-    document: &NodeRef,
-    objects: &mut Vec<Object>,
-    info: &MorphInfo,
-) -> Result<usize, String> {
-    // We'll have at least as many objects as the original ones
-    let initial_obj_no = objects.len();
-
-    // Sample target number of objects (count) and target sizes for morphed
-    // objects. Count is a multiple of "obj_num" and bigger than "min_count".
-    // Target size for each objects is a multiple of "obj_size" and bigger
-    // than the object's  original size.
-    let target_count = get_multiple(info.obj_num, initial_obj_no);
-
-    for i in 0..objects.len() {
-        let min_size = objects[i].content.len()
-            + match objects[i].kind {
-                ObjectKind::CSS | ObjectKind::JS => 4,
-                _ => 0,
-            };
-
-        let obj_target_size = get_multiple(info.obj_size, min_size);
-
-        objects[i].target_size = Some(obj_target_size);
-    }
-
-    let fake_objects_count = target_count - initial_obj_no; // The number of fake objects.
-
-    // To get the target size of each fake object, sample uniformly a multiple
-    // of "obj_size" which is smaller than "max_obj_size".
-    let fake_objects_sizes =
-        get_multiples_in_range(info.obj_size, info.max_obj_size, fake_objects_count)?;
-
-    // Add the fake objects to the vector.
-    for i in 0..fake_objects_count {
-        objects.push(Object::fake_image(fake_objects_sizes[i]));
-    }
-
-    // find target size,a multiple of "obj_size".
-    let content = dom::serialize_html(&document);
-    let html_min_size = content.len() + 7; // Plus 7 because of the comment characters.
-
-    Ok(get_multiple(info.obj_size, html_min_size))
 }

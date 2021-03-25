@@ -12,9 +12,9 @@ const SAMPLE_LIMIT: usize = 30;
 
 // Probability distribution
 pub struct Dist {
-    pub name  : String                 ,
-    pub params: Vec<f64>               , // For predefined distributions these are the params (eg mean, lambda, etc). For custom, these are the probabilities
-    pub values: Option<Vec<Vec<usize>>>, // Only for custom, the values
+    pub name  : String                     ,
+    pub params: Vec<f64>                   , // For predefined distributions these are the params (eg mean, lambda, etc). For custom, these are the probabilities
+    pub values: Option< Vec< Vec<usize> > >, // Only for custom, the values
 }
 
 /// Parses a given distribution from the config file
