@@ -1,10 +1,11 @@
-use aux::stringify_error;
 use base64;
 use dom;
-use kuchiki::NodeRef;
 use libc;
-use morphing::{MorphInfo};
 use parse;
+
+use kuchiki::NodeRef;
+use morphing::{MorphInfo};
+
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;
@@ -46,7 +47,6 @@ fn append_ref(object: &dom::Object) {
 
     if attr != "style" {
         dom::node_set_attribute(node, attr, new_link);
-
     } else {
 
         let last_child   = node.last_child().unwrap();
@@ -57,8 +57,6 @@ fn append_ref(object: &dom::Object) {
         refc_val = refc_val.replace(&object.uri, &new_link);
 
         *refc.borrow_mut() = refc_val;
-
-        // println!("{}", refc.borrow());
     }
 }
 
@@ -102,18 +100,14 @@ fn add_padding_objects(document: &NodeRef, objects: &[dom::Object]) {
     let mut i = 1;
 
     for object in objects {
-
         let elem = dom::create_element("img");
 
         dom::node_set_attribute(
             &elem,
             "src",
-            format!(
-                "/__alpaca_fake_image.png?alpaca-padding={}&i={}",
-                object.target_size.unwrap(),
-                i
-            ),
+            format!( "/__alpaca_fake_image.png?alpaca-padding={}&i={}", object.target_size.unwrap(), i ),
         );
+
         dom::node_set_attribute( &elem, "style", String::from("visibility:hidden") );
 
         node.append(elem);
@@ -154,7 +148,7 @@ pub extern "C" fn get_required_files( pinfo: *mut MorphInfo, length: *mut c_int,
         }
     };
 
-    let document    = parse::parse_html(html);
+    let document = parse::parse_html(html);
 
     let mut objects;
 
@@ -181,108 +175,13 @@ pub extern "C" fn get_required_files( pinfo: *mut MorphInfo, length: *mut c_int,
 
     std::mem::forget(out);
 
-    unsafe {
-        std::ptr::write(length, len as c_int);
-    }
+    unsafe { std::ptr::write(length, len as c_int); }
 
     ptr
 }
 
-/*
-    // #[no_mangle]
-    // pub extern "C" fn get_html_required_files( pinfo: *mut MorphInfo, length: *mut c_int ) -> *mut *mut libc::c_char {
-
-    //     std::env::set_var("RUST_BACKTRACE", "full");
-
-    //     let info = unsafe { &mut *pinfo };
-    //     let uri  = c_string_to_str(info.uri).unwrap();
-
-    //     // Convert arguments into &str
-    //     let html = match c_string_to_str(info.content) {
-
-    //         Ok (s) => s,
-    //         Err(e) => {
-    //             eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-    //             return std::ptr::null_mut(); // return NULL pointer if html cannot be converted to a string
-    //         }
-    //     };
-
-    //     let document    = dom::parse_html(html);
-    //     let mut objects = dom::parse_object_names(&document); // Vector of objects found in the html.
-
-    //     let mut object_uris = vec![];
-
-    //     for obj in &mut *objects {
-    //         object_uris.push( CString::new( format!("{}", obj.to_owned()) ).unwrap() );
-    //     }
-
-    //     let mut out = object_uris.into_iter()
-    //                              .map( |s| s.into_raw() )
-    //                              .collect::< Vec<_> >();
-
-    //     out.shrink_to_fit();
-
-    //     let len = out.len();
-    //     let ptr = out.as_mut_ptr();
-
-    //     std::mem::forget(out);
-
-    //     unsafe {
-    //         std::ptr::write(length, len as c_int);
-    //     }
-
-    //     ptr
-    // }
-
-    // #[no_mangle]
-    // pub extern "C" fn get_required_css_files( pinfo: *mut MorphInfo, length: *mut c_int ) -> *mut *mut libc::c_char {
-
-    //     std::env::set_var("RUST_BACKTRACE", "full");
-
-    //     let info = unsafe { &mut *pinfo };
-    //     let uri  = c_string_to_str(info.uri).unwrap();
-
-    //     // Convert arguments into &str
-    //     let html = match c_string_to_str(info.content) {
-
-    //         Ok (s) => s,
-    //         Err(e) => {
-    //             eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
-    //             return std::ptr::null_mut(); // return NULL pointer if html cannot be converted to a string
-    //         }
-    //     };
-
-    //     let document    = dom::parse_html(html);
-    //     let mut objects = dom::parse_css_names(&document); // Vector of objects found in the html.
-
-    //     let mut object_uris = vec![];
-
-    //     for obj in &mut *objects {
-    //         object_uris.push( CString::new( format!("{}", obj.to_owned()) ).unwrap() );
-    //     }
-
-    //     let mut out = object_uris.into_iter()
-    //                              .map( |s| s.into_raw() )
-    //                              .collect::< Vec<_> >();
-
-    //     out.shrink_to_fit();
-
-    //     let len = out.len();
-    //     let ptr = out.as_mut_ptr();
-
-    //     std::mem::forget(out);
-
-    //     unsafe {
-    //         std::ptr::write(length, len as c_int);
-    //     }
-
-    //     ptr
-    // }
-*/
-
 // -----------------------------------------------------------------------------------------------------
 // FILE MANIPULATION AND DISCARDING
-
 
 pub fn keep_local_objects(objects: &mut Vec< dom::Object >) {
     objects.retain( |obj| !obj.uri.contains("http:") && !obj.uri.contains("https:") )
@@ -321,11 +220,8 @@ pub fn copy_file_to_string(fname : &str) -> Result<String, std::io::Error> {
     let path    = Path::new(fname);
     let display = path.display();
 
-    // println!("{}",display);
-
     // Open the path in read-only mode, returns `io::Result<File>`
-    let mut file = match File::open(&path){
-
+    let mut file = match File::open(&path) {
         Err(why) => {
             println!("couldn't open {}: {}", display, why);
             return Err(why)
@@ -367,6 +263,14 @@ pub fn content_to_c(content: Vec<u8>, info: &mut MorphInfo) -> u8 {
     info.content = buf.as_mut_ptr();
     std::mem::forget(buf);
     1
+}
+
+// Converst a Result<T,E> to Result<T,String> by calling .to_string() on the error
+pub fn stringify_error<T, E:ToString>(res: Result<T,E>) -> Result<T, String> {
+    match res {
+        Ok(res) => return Ok(res),
+        Err(e)  => return Err( e.to_string() ),
+    }
 }
 
 pub fn c_string_to_str<'a>(s: *const u8) -> Result<&'a str, String> {

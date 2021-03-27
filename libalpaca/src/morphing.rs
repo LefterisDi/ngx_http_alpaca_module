@@ -1,25 +1,24 @@
 //! Contains main morphing routines.
+use dom;
+use pad;
+use parse;
+
 use deterministic::*;
+use dom::{Map, Object, ObjectKind};
+use inlining::{ make_objects_inlined };
+use kuchiki::NodeRef;
+use pad::{ get_html_padding, get_object_padding };
+
 use distribution::{ sample_ge     ,
                     sample_ge_many,
                     sample_pair_ge,
                     Dist            };
-use dom::{Map, Object, ObjectKind};
-use dom;
-use inlining::{ make_objects_inlined };
-use kuchiki::NodeRef;
-use pad::{ get_html_padding, get_object_padding };
-use pad;
-use parse;
 use utils::{ keep_local_objects ,
              document_to_c      ,
              content_to_c       ,
              c_string_to_str    ,
              insert_objects_refs };
 
-// use image::gif::{GifDecoder, GifEncoder};
-// use image::{ImageDecoder, AnimationDecoder};
-// use std::fs::File;
 
 #[repr(C)]
 pub struct MorphInfo {

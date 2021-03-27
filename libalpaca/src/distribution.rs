@@ -1,10 +1,10 @@
 //! Provides functions to sample objects' count and size from a
 //! probability distribution.
-use aux::*;
 use rand::Rng;
 use rand_distr::Distribution;
 use rand_distr;
 use std::{ str, fs };
+use utils;
 
 // Number of tries per sample. If no sampled number satisfies a specified
 // threshold after `SAMPLE_LIMIT` tries the sampling function returns Err.
@@ -17,16 +17,16 @@ pub struct Dist {
     pub values: Option< Vec< Vec<usize> > >, // Only for custom, the values
 }
 
-/// Parses a given distribution from the config file
+// Parses a given distribution from the config file
 impl Dist {
 
-    /// Construct a Distributions object.
+    // Construct a Distributions object
     pub fn from(dist: &str) -> Result<Dist,String> {
 
         if dist.ends_with(".dist") {
 
             // A distribution file has been given
-            let res = stringify_error(fs::read_to_string(dist.clone()));
+            let res = utils::stringify_error(fs::read_to_string(dist.clone()));
 
             if res.is_err() {
                 eprint!("libalpaca: cannot open {}: \n", dist);
@@ -35,8 +35,8 @@ impl Dist {
             let data = res?;
 
             // Construct the 2 vectors containing the values and probabilities
-            let mut values: Vec<Vec<usize>> = Vec::new();
-            let mut probs : Vec<f64>        = Vec::new();
+            let mut values: Vec< Vec<usize> > = Vec::new();
+            let mut probs : Vec<f64>          = Vec::new();
 
             for line in data.lines() {
 
@@ -86,7 +86,7 @@ impl Dist {
                 _           => return Err( format!("invalid distribution {}", dist) ),
             };
 
-            // A predefined distribution and its parameters have been given.
+            // A predefined distribution and its parameters have been given
             if params.len() != params_needed {
                 return Err( format!( "{} distribution requires {} params, {} given", name, params_needed, params.len() ) );
             }
@@ -100,7 +100,7 @@ impl Dist {
     }
 }
 
-pub fn sample_ge_many(dist:&Dist, lower_bound:usize, samples:usize) -> Result<Vec<usize>,String> {
+pub fn sample_ge_many(dist:&Dist, lower_bound:usize, samples:usize) -> Result< Vec<usize>, String > {
 
     let mut vec: Vec<usize> = Vec::new();
 
@@ -111,8 +111,8 @@ pub fn sample_ge_many(dist:&Dist, lower_bound:usize, samples:usize) -> Result<Ve
     Ok(vec)
 }
 
-/// Samples a value greater or equal than the given one
-pub fn sample_ge(dist:&Dist, lower_bound:usize) -> Result<usize,String> {
+// Samples a value greater or equal than the given one
+pub fn sample_ge(dist:&Dist, lower_bound:usize) -> Result<usize, String> {
 
     if dist.name == "custom" {
 
@@ -123,13 +123,13 @@ pub fn sample_ge(dist:&Dist, lower_bound:usize) -> Result<usize,String> {
         }
 
         // Sample from custom distribution in a single try, by considering only values >= lower_bound
-        let total_mass:f64 = ( 0..values.len() ).filter( |i| values[*i][0] >= lower_bound ).map( |i| dist.params[i] ).sum();
+        let total_mass: f64 = ( 0..values.len() ).filter( |i| values[*i][0] >= lower_bound ).map( |i| dist.params[i] ).sum();
 
         if total_mass < 1e-5 {
             return Err( format!("values >= {} have prob 0 in custom distribution", lower_bound) );
         }
 
-        let probability: f64 = rand::thread_rng().sample(rand_distr::OpenClosed01);
+        let probability: f64 = rand::thread_rng().sample( rand_distr::OpenClosed01 );
         let mut sum          = 0.0;
         let mut sampled_num  = 0;
 
@@ -167,9 +167,8 @@ pub fn sample_ge(dist:&Dist, lower_bound:usize) -> Result<usize,String> {
     }
 }
 
-// returns a pair (a,b) from a joint distribution, satisfying
+// Returns a pair (a,b) from a joint distribution, satisfying
 //    a >= lb_a   and   b >= lb_b      where (a,b) = lower_bound
-//
 pub fn sample_pair_ge( dist: &Dist, lower_bound: (usize, usize) ) -> Result<(usize,usize), String> {
 
     if dist.name != "custom" {

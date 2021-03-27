@@ -4,12 +4,6 @@ use kuchiki::NodeRef;
 use std::{ str, ptr };
 use std::ffi::CString;
 
-// use std::os;
-// use std::io::BufWriter;
-// use std::io::Write;
-
-// use std::io::prelude::*;
-// use std::fs::File;
 
 // Defines our basic object types, each of which has a corresponding
 // unique (distribution, padding type) tuple.
@@ -151,7 +145,7 @@ pub fn serialize_html(dom: &NodeRef) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::new();
     let opts             = SerializeOpts::default();
 
-    serialize(&mut buf, dom, opts).expect("serialization failed");
+    serialize( &mut buf, dom, opts ).expect("serialization failed");
 
     buf
 }

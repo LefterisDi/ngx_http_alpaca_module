@@ -1,8 +1,9 @@
-use dom::{node_get_attribute};
 use dom;
-use morphing::{MorphInfo};
 use parse;
-use utils::{get_img_format_and_ext,content_to_c,c_string_to_str};
+
+use dom::{ node_get_attribute };
+use morphing::{ MorphInfo };
+use utils::{ get_img_format_and_ext, content_to_c, c_string_to_str };
 
 #[no_mangle]
 pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map) -> u8 {
@@ -10,11 +11,9 @@ pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map
     std::env::set_var("RUST_BACKTRACE", "full");
 
     let info = unsafe { &mut *pinfo };
-
     let uri  = c_string_to_str(info.uri).unwrap();
 
     let html = match c_string_to_str(info.content) {
-
         Ok (s) => s,
         Err(e) => {
             eprint!("libalpaca: cannot read html content of {}: {}\n", uri, e);
@@ -49,8 +48,6 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
             println!("OBJECT NO TARGET SIZE {}", object.uri);
         }
 
-        println!("{}", object.uri);
-
         let node = object.node.as_ref().unwrap();
 
         let attr = match node.as_element()
@@ -80,9 +77,6 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
         }
 
         let temp = format!("{}/{}", root, path.as_str());
-
-        println!("{}", temp);
-
         let temp = get_img_format_and_ext(&temp, &object.uri);
 
         if attr != "style" {
@@ -98,8 +92,6 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
             let mut refc_val = refc.borrow().clone();
 
             refc_val = refc_val.replace(&object.uri, &temp);
-
-            // println!("{}", refc_val);
 
             *refc.borrow_mut() = refc_val;
 

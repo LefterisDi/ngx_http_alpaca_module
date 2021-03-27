@@ -1,9 +1,10 @@
-use dom::{ObjectKind, Object, Map};
 use dom;
+use utils;
+
+use dom::{ ObjectKind, Object, Map };
 use kuchiki::traits::*;
 use kuchiki::{ parse_html_with_options, NodeRef, ParseOpts };
 use std::str;
-use utils;
 
 
 pub fn parse_html(input: &str) -> NodeRef {

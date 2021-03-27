@@ -2,8 +2,8 @@
 //!	using the ALPaCA's deterministic way.
 use rand_distr::Distribution;
 
-/// Returns the next multiple of "num" which is greater
-/// or equal than "min".
+// Returns the next multiple of "num" which is greater
+// or equal than "min".
 pub fn get_multiple(num: usize, min: usize) -> usize {
 
     let mut count = num;
@@ -11,13 +11,12 @@ pub fn get_multiple(num: usize, min: usize) -> usize {
     while count < min {
         count += num;
     }
-
     count
 }
 
-/// Returns a vector of target sizes for the fake objects. Sizes have
-/// to be a multiple of "obj_size" and smaller than "max_obj_size".
-/// They are sampled uniformly.
+// Returns a vector of target sizes for the fake objects. Sizes have
+// to be a multiple of "obj_size" and smaller than "max_obj_size".
+// They are sampled uniformly
 pub fn get_multiples_in_range( obj_size     : usize,
                                max_obj_size : usize,
                                n            : usize, ) -> Result<Vec<usize>, String> {
