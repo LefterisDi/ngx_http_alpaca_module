@@ -1,9 +1,7 @@
 //! Contains parsing routines
 use html5ever::{ interface::QualName, LocalName, ns, namespace_url, serialize, serialize::{SerializeOpts} };
 use kuchiki::NodeRef;
-use std::fs::File;
-use std::io::prelude::*;
-use std::{ str, path::Path, ptr };
+use std::{ str, ptr };
 use std::ffi::CString;
 
 // use std::os;
