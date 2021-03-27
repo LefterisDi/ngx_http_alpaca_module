@@ -8,10 +8,13 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;
 use std::os::raw::c_int;
+use std::fs::File;
+use std::io::prelude::*;
+use std::{path::Path};
 
 
 // -----------------------------------------------------------------------------------------------------
-// REFERENCE MANIPULATION FUNCTIONS
+// NODE OBJECT REFERENCE MANIPULATION FUNCTIONS
 
 // Appends the ALPaCA GET parameter to an html element
 fn append_ref(object: &dom::Object) {
@@ -312,6 +315,40 @@ pub fn get_img_format_and_ext(file_full_path: &String, file_name: &String) -> St
     temp
 }
 
+pub fn copy_file_to_string(fname : &str) -> Result<String, std::io::Error> {
+
+    // Create a path to the desired file
+    let path    = Path::new(fname);
+    let display = path.display();
+
+    // println!("{}",display);
+
+    // Open the path in read-only mode, returns `io::Result<File>`
+    let mut file = match File::open(&path){
+
+        Err(why) => {
+            println!("couldn't open {}: {}", display, why);
+            return Err(why)
+        },
+
+        Ok(file) => {
+            println!("OPENED");
+            file
+        },
+    };
+
+    // Read the file contents into a string, returns `io::Result<usize>`
+    let mut s = String::new();
+
+    match file.read_to_string(&mut s) {
+        Err(why) => panic!("couldn't read {}: {}", display, why),
+        Ok(_)    => ()
+    }
+
+    // `file` goes out of scope, and the "hello.txt" file gets closed
+    Ok(s)
+}
+
 // -----------------------------------------------------------------------------------------------------
 // CONTENT FROM RUST TO C AND VICE VERSA FUNCTIONS
 
@@ -349,4 +386,11 @@ pub extern "C" fn free_memory(data: *mut u8, size: usize) {
     unsafe {
         Box::from_raw(s);
     }
+}
+
+// -----------------------------------------------------------------------------------------------------
+//STRING MANIPULATION
+
+pub fn remove_whitespace(s: &str) -> String {
+    s.chars().filter( |c| !c.is_whitespace() ).collect()
 }
