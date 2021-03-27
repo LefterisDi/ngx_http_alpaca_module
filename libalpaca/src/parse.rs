@@ -1,8 +1,9 @@
-use dom;
 use dom::{ObjectKind, Object, Map};
+use dom;
 use kuchiki::traits::*;
 use kuchiki::{ parse_html_with_options, NodeRef, ParseOpts };
 use std::str;
+use utils;
 
 
 pub fn parse_html(input: &str) -> NodeRef {
@@ -62,7 +63,7 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 
 
 		let path_attr = if name == "link" { "href" } else { "src" };
-		let path      = match node_get_attribute(node, path_attr) {
+		let path      = match dom::node_get_attribute(node, path_attr) {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
 			_                                             => continue,
 		};
@@ -73,7 +74,7 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 
 		objects.push(temp);
 
-		let rel  = node_get_attribute(node, "rel").unwrap_or_default();
+		let rel  = dom::node_get_attribute(node, "rel").unwrap_or_default();
 		match ( name.as_str(), rel.as_str() ) {
 			("link", "stylesheet")                       => ObjectKind::CSS                          ,
 			("link", "shortcut icon") | ("link", "icon") => { found_favicon = true; ObjectKind::IMG },
@@ -83,7 +84,7 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 
 	// If no favicon was found, insert an empty one
 	if !found_favicon {
-		insert_empty_favicon(document);
+		dom::insert_empty_favicon(document);
 	}
 
     // objects.sort_unstable_by( |a, b| b.content.len().cmp( &a.content.len() ) ); // larger first
@@ -97,7 +98,7 @@ pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
         let node      = node_data.as_node();
 		let path_attr = "href";
 
-        let path = match node_get_attribute(node, path_attr) {
+        let path = match dom::node_get_attribute(node, path_attr) {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
 			_                                             => continue,
 		};
@@ -106,12 +107,12 @@ pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
 			continue;
 		}
 
-		let res  = get_map_element(req_mapper, format!("/{}",path) );
+		let res  = dom::get_map_element(req_mapper, format!("/{}",path) );
 
 		let par  = node.parent().unwrap();
 		let temp = res.iter().map(|&c| c as char).collect::<String>();
 
-        let new_node = create_css_node(&temp);
+        let new_node = dom::create_css_node(&temp);
 
         par.append(new_node);
 	}
@@ -126,7 +127,7 @@ pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
             let node      = node_data.as_node();
 			let path_attr = "href";
 
-			let path = match node_get_attribute(node, path_attr) {
+			let path = match dom::node_get_attribute(node, path_attr) {
 				Some(p) if p != "" && !p.starts_with("data:") => p       ,
 				_                                             => continue,
 			};
@@ -182,7 +183,7 @@ pub fn parse_object_names(document: &NodeRef) -> Vec<String> {
 		let name = node_data.name.local.to_lowercase();
 
 		let path_attr = if name == "link" { "href" } else { "src" };
-		let path      = match node_get_attribute(node, path_attr) {
+		let path      = match dom::node_get_attribute(node, path_attr) {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
 			_                                             => continue,
 		};
@@ -191,7 +192,7 @@ pub fn parse_object_names(document: &NodeRef) -> Vec<String> {
 
 		objects.push(temp.clone());
 
-		let rel  = node_get_attribute(node, "rel").unwrap_or_default();
+		let rel  = dom::node_get_attribute(node, "rel").unwrap_or_default();
 
         match ( name.as_str(), rel.as_str() ) {
 			("link", "stylesheet")                       => ObjectKind::CSS                          ,
@@ -218,7 +219,7 @@ pub fn parse_object_names(document: &NodeRef) -> Vec<String> {
 
 	// If no favicon was found, insert an empty one
 	if !found_favicon {
-		insert_empty_favicon(document);
+		dom::insert_empty_favicon(document);
 	}
 
     // objects.sort_unstable_by( |a, b| b.content.len().cmp( &a.content.len() ) ); // larger first
@@ -236,12 +237,12 @@ pub fn parse_objects(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 		let name = node_data.name.local.to_lowercase();
 
 		let path_attr = if name == "link" { "href" } else { "src" };
-		let path      = match node_get_attribute(node, path_attr) {
+		let path      = match dom::node_get_attribute(node, path_attr) {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
 			_                                             => continue,
 		};
 
-		let rel  = node_get_attribute(node, "rel").unwrap_or_default();
+		let rel  = dom::node_get_attribute(node, "rel").unwrap_or_default();
 		let kind = match ( name.as_str(), rel.as_str() ) {
 			("link", "stylesheet")                       => ObjectKind::CSS                          ,
 			("link", "shortcut icon") | ("link", "icon") => { found_favicon = true; ObjectKind::IMG },
@@ -256,7 +257,7 @@ pub fn parse_objects(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 
 		println!("REL {}",relative);
 
-		let res = get_map_element(req_mapper, relative);
+		let res = dom::get_map_element(req_mapper, relative);
 
 		objects.push( Object::existing(&res, kind, path, node) );
 	}
@@ -277,14 +278,14 @@ pub fn parse_objects(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 			let split: Vec<&str> = path.split('?').collect();
 			let relative         = format!("/{}",split[0]);
 
-			let res = get_map_element(req_mapper,relative);
+			let res = dom::get_map_element(req_mapper,relative);
 
 			objects.push( Object::existing(&res, kind, path, node) );
 		}
 	}
 
 	if !found_favicon {
-		insert_empty_favicon(document);
+		dom::insert_empty_favicon(document);
 	}
 
     objects.sort_unstable_by( |a, b| b.content.len().cmp( &a.content.len() ) ); // larger first

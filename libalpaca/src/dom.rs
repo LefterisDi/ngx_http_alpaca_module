@@ -95,103 +95,6 @@ impl Object {
     }
 }
 
-// Maps a (relative or absolute) uri, to an absolute filesystem path.
-// Returns None if uri_path is located in another server
-fn uri_to_abs_fs_path(root: &str, relative: &str, page_uri: &str, alias: usize) -> Option<String> {
-
-	if relative.starts_with("https://") || relative.starts_with("http://") {
-		return None;
-	}
-
-	let mut fs_relative = String::from(relative);
-
-	if !fs_relative.starts_with('/') {
-
-        let base = Path::new(page_uri).parent().unwrap().to_str().unwrap();
-
-		if !base.ends_with('/') {
-			fs_relative.insert(0,'/');
-		}
-
-        fs_relative.insert_str(0,base);
-	}
-
-	// Resolve the dots in the path so far
-	let     components: Vec<&str>   = fs_relative.split("/").collect(); 	// Original components of the path
-	let mut normalized: Vec<String> = Vec::with_capacity(components.len()); // Stack to be used for the normalization
-
-	for comp in components {
-		if comp == "." || comp == "" {
-            continue;
-        } else if comp == ".." {
-			if !normalized.is_empty() {
-				normalized.pop();
-			}
-		} else {
-			normalized.push("/".to_string()+comp);
-		}
-	}
-
-	let mut absolute: String = normalized.into_iter().collect(); // String with the resolved relative path
-
-	if page_uri[..alias] != absolute[..alias] {
-		return None;
-	}
-
-	absolute = absolute[alias..].to_string(); // Remove alias characters in case there are any
-
-	absolute.insert_str(0,root); // Make the above path absolute by adding the root
-
-	Some(absolute)
-}
-
-pub fn create_css_node(css_text: &str) -> NodeRef {
-
-	let elem_node = create_element("style");
-	let css_text  = NodeRef::new_text(css_text);
-
-    elem_node.append(css_text);
-	elem_node
-}
-
-pub fn copy_file_to_string(fname : &str) -> Result<String, std::io::Error> {
-
-    // Create a path to the desired file
-    let path    = Path::new(fname);
-    let display = path.display();
-
-    // println!("{}",display);
-
-    // Open the path in read-only mode, returns `io::Result<File>`
-    let mut file = match File::open(&path){
-
-        Err(why) => {
-            println!("couldn't open {}: {}", display, why);
-            return Err(why)
-        },
-
-        Ok(file) => {
-            println!("OPENED");
-            file
-        },
-    };
-
-    // Read the file contents into a string, returns `io::Result<usize>`
-    let mut s = String::new();
-
-    match file.read_to_string(&mut s) {
-        Err(why) => panic!("couldn't read {}: {}", display, why),
-        Ok(_)    => ()
-    }
-
-    // `file` goes out of scope, and the "hello.txt" file gets closed
-    Ok(s)
-}
-
-fn remove_whitespace(s: &str) -> String {
-    s.chars().filter( |c| !c.is_whitespace() ).collect()
-}
-
 pub fn get_map_element(req_mapper : Map , uri : String) -> Vec<u8> {
 
 	let c_uri    = CString::new(uri).expect("CString::new Failed");
@@ -213,37 +116,18 @@ pub fn get_map_element(req_mapper : Map , uri : String) -> Vec<u8> {
 	element_data
 }
 
-pub fn insert_empty_favicon(document: &NodeRef) {
-
-    // Append the <link> either to the <head> tag, if exists, otherwise
-    // to the whole document
-    let node_data;  // to outlive the match
-    let node = match document.select("head").unwrap().next() {
-        Some(nd) => { node_data = nd; node_data.as_node() },
-        None     => document                               ,
-    };
-
-	let elem = create_element("link");
-
-    node_set_attribute( &elem, "href", String::from("data:,")       );
-	node_set_attribute( &elem, "rel", String::from("shortcut icon") );
-
-    node.append(elem);
-}
-
-pub fn serialize_html(dom: &NodeRef) -> Vec<u8> {
-
-    let mut buf: Vec<u8> = Vec::new();
-    let opts             = SerializeOpts::default();
-
-    serialize(&mut buf, dom, opts).expect("serialization failed");
-
-    buf
-}
-
 pub fn create_element(name: &str) -> NodeRef {
     let qual_name = QualName::new( None, ns!(), LocalName::from(name) );
     NodeRef::new_element(qual_name, Vec::new())
+}
+
+pub fn create_css_node(css_text: &str) -> NodeRef {
+
+	let elem_node = create_element("style");
+	let css_text  = NodeRef::new_text(css_text);
+
+    elem_node.append(css_text);
+	elem_node
 }
 
 pub fn node_get_attribute(node: &NodeRef, name: &str) -> Option<String> {
@@ -262,4 +146,32 @@ pub fn node_get_attribute(node: &NodeRef, name: &str) -> Option<String> {
 pub fn node_set_attribute(node: &NodeRef, name: &str, value: String) {
     let elem = node.as_element().unwrap();
     elem.attributes.borrow_mut().insert(name, value);
+}
+
+pub fn serialize_html(dom: &NodeRef) -> Vec<u8> {
+
+    let mut buf: Vec<u8> = Vec::new();
+    let opts             = SerializeOpts::default();
+
+    serialize(&mut buf, dom, opts).expect("serialization failed");
+
+    buf
+}
+
+pub fn insert_empty_favicon(document: &NodeRef) {
+
+    // Append the <link> either to the <head> tag, if exists, otherwise
+    // to the whole document
+    let node_data;  // to outlive the match
+    let node = match document.select("head").unwrap().next() {
+        Some(nd) => { node_data = nd; node_data.as_node() },
+        None     => document                               ,
+    };
+
+	let elem = create_element("link");
+
+    node_set_attribute( &elem, "href", String::from("data:,")       );
+	node_set_attribute( &elem, "rel", String::from("shortcut icon") );
+
+    node.append(elem);
 }
