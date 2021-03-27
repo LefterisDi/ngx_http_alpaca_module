@@ -4,11 +4,11 @@ use dom;
 use kuchiki::NodeRef;
 use libc;
 use morphing::{MorphInfo};
+use parse;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;
 use std::os::raw::c_int;
-
 
 // -----------------------------------------------------------------------------------------------------
 // REFERENCE MANIPULATION FUNCTIONS
@@ -151,14 +151,14 @@ pub extern "C" fn get_required_files( pinfo: *mut MorphInfo, length: *mut c_int,
         }
     };
 
-    let document    = dom::parse_html(html);
+    let document    = parse::parse_html(html);
 
     let mut objects;
 
     if is_html {
-        objects = dom::parse_object_names(&document); // Vector of objects found in the html.
+        objects = parse::parse_object_names(&document); // Vector of objects found in the html.
     } else {
-        objects = dom::parse_css_names(&document);    // Vector of objects found in the html.
+        objects = parse::parse_css_names(&document);    // Vector of objects found in the html.
     }
 
     let mut object_uris = vec![];

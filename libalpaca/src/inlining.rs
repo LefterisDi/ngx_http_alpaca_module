@@ -1,7 +1,8 @@
-use dom;
 use dom::{node_get_attribute};
-use utils::{get_img_format_and_ext,content_to_c,c_string_to_str};
+use dom;
 use morphing::{MorphInfo};
+use parse;
+use utils::{get_img_format_and_ext,content_to_c,c_string_to_str};
 
 #[no_mangle]
 pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map) -> u8 {
@@ -21,10 +22,10 @@ pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map
         }
     };
 
-    let document = dom::parse_html(html);
+    let document = parse::parse_html(html);
 
     // Vector of objects found in the html.
-    dom::parse_css_and_inline(&document, req_mapper);
+    parse::parse_css_and_inline(&document, req_mapper);
 
     let content = dom::serialize_html(&document);
 

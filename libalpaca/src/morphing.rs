@@ -10,6 +10,7 @@ use inlining::{ make_objects_inlined };
 use kuchiki::NodeRef;
 use pad::{ get_html_padding, get_object_padding };
 use pad;
+use parse;
 use utils::{ keep_local_objects ,
              document_to_c      ,
              content_to_c       ,
@@ -68,10 +69,10 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
         }
     };
 
-    let document = dom::parse_html(html);
+    let document = parse::parse_html(html);
 
     // Vector of objects found in the html
-    let mut objects = dom::parse_html_objects_from_content(&document, req_mapper);
+    let mut objects = parse::parse_objects(&document, req_mapper);
 
     // let objects: Vec<_> = objects.into_iter().unique().collect();
 
@@ -120,8 +121,8 @@ pub extern "C" fn morph_object(pinfo: *mut MorphInfo) -> u8 {
     let content_type = c_string_to_str(info.content_type).unwrap();
     let query        = c_string_to_str(info.query)       .unwrap();
 
-    let kind        = dom::parse_object_kind(content_type);
-    let target_size = dom::parse_target_size(query);
+    let kind        = parse::parse_object_kind(content_type);
+    let target_size = parse::parse_target_size(query);
 
     if (target_size == 0) || (target_size <= info.size) {
         // Target size has to be greater than current size.
