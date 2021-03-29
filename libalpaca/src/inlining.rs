@@ -85,7 +85,7 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
             objects_inlined.push(i);
 
         } else {
-
+            //Replaces the <img src="q1.gif"> element for example with <img src="data:image/gif;charset=utf-8;base64 , ...">
             let last_child   = node.last_child().unwrap();
             let refc         = last_child.into_text_ref().unwrap();
 

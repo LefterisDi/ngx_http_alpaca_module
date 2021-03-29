@@ -158,6 +158,8 @@ pub extern "C" fn get_required_files( pinfo: *mut MorphInfo, length: *mut c_int,
         objects = parse::parse_css_names(&document);    // Vector of objects found in the html.
     }
 
+
+    // Prepare vector to be returned as char** array back to C
     let mut object_uris = vec![];
 
     for obj in &mut *objects {
