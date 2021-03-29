@@ -92,6 +92,7 @@ static ngx_int_t ngx_http_alpaca_init           (ngx_conf_t* cf);
 
 // -----------------------------------------------------------------------------------------------------
 
+//These are the ALPaCA commands/directives given in the nginx.conf
 static ngx_command_t ngx_http_alpaca_commands[] = {
     {
         ngx_string("alpaca_prob"),
@@ -321,17 +322,20 @@ static ngx_int_t send_response(ngx_http_request_t* r, ngx_uint_t resp_size, u_ch
     ngx_buf_t   *b;
     // ngx_chain_t  out;
 
+    //Allocate buffer for the response
     b = ngx_calloc_buf(r->pool);
 
     if (b == NULL)
         return NGX_ERROR;
 
+    //Copy the response to buffer
     b->pos  = response;
     b->last = b->pos + resp_size;
 
     b->last_buf      = 1;
     b->last_in_chain = 1;
 
+    //saves content in read-only memory
     if (in_memory)
         b->memory = 1;
 
@@ -607,13 +611,6 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
         // chain and find its content size
         if ( ( response = get_response(ctx ,r , in , true) ) != NULL ) {
 
-            for (cl = in; cl; cl = cl->next) {
-                if (cl->buf->last_buf) {
-                    cl->buf->last_buf      = 0;
-                    cl->buf->last_in_chain = 1;
-                }
-            }
-
             req_mapper   = NULL;
 			main_info    = NULL;
 
@@ -624,30 +621,19 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 			u_char** objects = NULL;
 			ngx_http_request_t *sr = NULL;
 
+            // Cycle through the buffer chain and set the to prepare the
+            // chain for the subrequest buffers to come
+            for (cl = in; cl; cl = cl->next) {
+                if (cl->buf->last_buf) {
+                    cl->buf->last_buf      = 0;
+                    cl->buf->last_in_chain = 1;
+                }
+            }
+
             main_info = initialize_morph_html_struct(r, core_plcf, plcf, ctx);
 
-            // main_info = malloc( sizeof(struct MorphInfo) );
-
-            // main_info->http_host = copy_ngx_str(r->headers_in.host->value, r->pool),
-            // main_info->root      = copy_ngx_str(core_plcf->root, r->pool),
-            // main_info->uri       = copy_ngx_str(r->uri, r->pool),
-
-
-            // main_info->alias     = core_plcf->alias != NGX_MAX_SIZE_T_VALUE ? core_plcf->alias : 0,
-            // main_info->content   = ctx->response,
-            // main_info->size      = ctx->size,
-
-            // main_info->dist_obj_size  = copy_ngx_str(plcf->dist_obj_size , r->pool),
-            // main_info->dist_obj_num   = copy_ngx_str(plcf->dist_obj_num  , r->pool),
-            // main_info->dist_html_size = copy_ngx_str(plcf->dist_html_size, r->pool),
-
-            // main_info->max_obj_size         = plcf->max_obj_size,
-            // main_info->obj_inlining_enabled = plcf->obj_inlining_enabled,
-            // main_info->obj_num              = plcf->obj_num,
-            // main_info->obj_size             = plcf->obj_size,
-            // main_info->probabilistic        = plcf->prob_enabled,
-            // main_info->use_total_obj_size   = plcf->use_total_obj_size,
-
+            // Collects required css filenames. If not activated or no files were found
+            //then we get every other filename that can be padded inside the given html
             objects = get_required_css_files(main_info, &subreq_tbd);
 
             if (subreq_tbd == 0) {
@@ -670,6 +656,8 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
                 }
             }
 
+
+            // Do subrequests one for each filename found and contained in objects array
             for (int i = 0; rc == NGX_OK && i < subreq_tbd ; i++) {
 
                 ngx_str_t uri;
@@ -681,24 +669,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
                 ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
             }
 
-			// ngx_str_t uri;
-
-			// ngx_str_set(&uri, "/q1.gif");
-
-			// printf("SUB for %s %lu\n", uri.data , (unsigned long)uri.len);
-			// ngx_http_subrequest(r, &uri , NULL // args , &sr, NULL // cb , 0 // flags );
-
-            // ngx_str_t uri;
-            // ngx_str_set(&uri , "/test.txt");
-            // ngx_http_subrequest(r, &uri , NULL // args , &sr, NULL // cb , 0 // flags );
-
-
-            // char temp[strlen( (char*)r->uri.data ) + 1];
-            // strcpy(temp , (char*)r->uri.data);
-            // char * token = strtok(temp, " ");
-            // strcpy(temp , token);
-
-			// Run alpaca
+			// If there are no files inside the given html then run alpaca only for the html
 			if (subreq_tbd == 0) {
 
                 if ( morph_html(main_info, req_mapper) ) {
@@ -857,8 +828,10 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
         	if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
 
+                // Counts how many subrequests have been done
 				subreq_count++;
 
+                // Create and pass request data structure to the map
 				request_data* req_data = malloc(sizeof(request_data));
 				req_data->content      = malloc(ctx->size);
 
@@ -887,6 +860,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 						printf("%s %ld\n",objects[i] , strlen((const char *)objects[i]));
 					}
 
+                    // Do subrequestsfor the rest of the files that exists inside the html
 					for (int i=0 ; rc == NGX_OK && i < subreq_tbd ; i++) {
 						ngx_str_t uri;
 
@@ -925,6 +899,10 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
             if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
 
+                // Counts how many subrequests have been done
+                subreq_count++;
+
+                // Create and pass request data structure to the map
 				request_data* req_data = malloc(sizeof(request_data));
 				req_data->content      = malloc(ctx->size);
 
@@ -937,12 +915,12 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
 				printf("SECOND %s %ld\n", r->uri.data , r->uri.len);
 
-                subreq_count++;
 
 				if (subreq_count == subreq_tbd) {
 
 					printf("FINAL\n");
 
+                    // Copy the initial response of the html to a string in order to return it in case of error
 					u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char) + 1);
 					strcpy( (char *)init_response, (char *)main_info->content );
 
