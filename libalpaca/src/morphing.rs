@@ -81,10 +81,10 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
     let mut orig_n = objects.len();
 
     let target_size = match if info.probabilistic != 0 {
-        morph_probabilistic( &document, &mut objects, &info, &mut orig_n )
+        morph_probabilistic( &document, &mut objects, &info, &mut orig_n, req_mapper)
 
     } else {
-        morph_deterministic( &document, &mut objects, &info, &mut orig_n )
+        morph_deterministic( &document, &mut objects, &info, &mut orig_n, req_mapper )
     } {
         Ok (s) => s,
         Err(e) => {
@@ -137,7 +137,8 @@ pub extern "C" fn morph_object(pinfo: *mut MorphInfo) -> u8 {
 fn morph_probabilistic( document   : &NodeRef        ,
                         objects    : &mut Vec<Object>,
                         info       : &MorphInfo      ,
-                        new_orig_n : &mut usize       ) -> Result<usize, String>
+                        new_orig_n : &mut usize      ,
+                        req_mapper : Map) -> Result<usize, String>
 {
     let dist_html_size = Dist::from( c_string_to_str(info.dist_html_size )? )?;
     let dist_obj_num   = Dist::from( c_string_to_str(info.dist_obj_num   )? )?;
@@ -237,13 +238,13 @@ fn morph_probabilistic( document   : &NodeRef        ,
 
         if target_obj_num < initial_obj_num && info.obj_inlining_enabled{
 
-            let root      = c_string_to_str(info.root)     .unwrap();
-            let http_host = c_string_to_str(info.http_host).unwrap();
+            // let root      = c_string_to_str(info.root)     .unwrap();
+            // let http_host = c_string_to_str(info.http_host).unwrap();
 
-            let full_root = String::from(root).replace("$http_host", http_host);
+            // let full_root = String::from(root).replace("$http_host", http_host);
 
             // Insert refs and add padding
-            make_objects_inlined( objects, full_root.as_str(), initial_obj_num - target_obj_num).unwrap();
+            make_objects_inlined( objects, req_mapper , initial_obj_num - target_obj_num).unwrap();
 
             *new_orig_n = target_obj_num;
 
@@ -287,13 +288,13 @@ fn morph_probabilistic( document   : &NodeRef        ,
 
         if target_obj_num < initial_obj_num && info.obj_inlining_enabled {
 
-            let root      = c_string_to_str(info.root)     .unwrap();
-            let http_host = c_string_to_str(info.http_host).unwrap();
+            // let root      = c_string_to_str(info.root)     .unwrap();
+            // let http_host = c_string_to_str(info.http_host).unwrap();
 
-            let full_root = String::from(root).replace("$http_host", http_host);
+            // let full_root = String::from(root).replace("$http_host", http_host);
 
             //insert refs and add padding
-            make_objects_inlined( objects, full_root.as_str(), initial_obj_num - target_obj_num ).unwrap();
+            make_objects_inlined( objects, req_mapper, initial_obj_num - target_obj_num ).unwrap();
 
             *new_orig_n = target_obj_num;
 
@@ -323,7 +324,8 @@ fn morph_probabilistic( document   : &NodeRef        ,
 fn morph_deterministic( document   : &NodeRef        ,
                         objects    : &mut Vec<Object>,
                         info       : &MorphInfo      ,
-                        new_orig_n : &mut usize       ) -> Result<usize, String>
+                        new_orig_n : &mut usize      ,
+                        req_mapper : Map ) -> Result<usize, String>
 {
     // We'll have at least as many objects as the original ones
     let initial_obj_no = objects.len();
@@ -357,13 +359,13 @@ fn morph_deterministic( document   : &NodeRef        ,
 
     if target_count < initial_obj_no && info.obj_inlining_enabled {
 
-        let root      = c_string_to_str(info.root).unwrap();
-        let http_host = c_string_to_str(info.http_host).unwrap();
+        // let root      = c_string_to_str(info.root).unwrap();
+        // let http_host = c_string_to_str(info.http_host).unwrap();
 
-        let full_root = String::from(root).replace("$http_host", http_host);
+        // let full_root = String::from(root).replace("$http_host", http_host);
 
         // Insert refs and add padding
-        make_objects_inlined(objects, full_root.as_str(), initial_obj_no - target_count).unwrap();
+        make_objects_inlined(objects, req_mapper, initial_obj_no - target_count).unwrap();
 
         *new_orig_n = target_count;
 

@@ -8,7 +8,6 @@ use morphing::{MorphInfo};
 
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::fs;
 use std::os::raw::c_int;
 use std::fs::File;
 use std::io::prelude::*;
@@ -194,9 +193,10 @@ pub fn get_file_extension(file_name: &String) -> String {
     split.pop().unwrap().to_owned()
 }
 
-pub fn get_img_format_and_ext(file_full_path: &String, file_name: &String) -> String {
+pub fn get_img_format_and_ext(req_mapper: dom::Map , file_name: &String) -> String {
 
-    let base_img = fs::read(file_full_path).expect("Unable to read file");
+    // let base_img = fs::read(file_full_path).expect("Unable to read file");
+    let base_img = dom::get_map_element(req_mapper, file_name.clone());
 
     let extent = get_file_extension(&file_name);
 

@@ -1,8 +1,8 @@
 use dom;
 use parse;
 
-use dom::{ node_get_attribute };
-use morphing::{ MorphInfo };
+use dom::{Map };
+use morphing::{ MorphInfo};
 use utils::{ get_img_format_and_ext, content_to_c, c_string_to_str };
 
 #[no_mangle]
@@ -32,7 +32,7 @@ pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map
 }
 
 // Inserts the ALPaCA GET parameters to the html objects, and adds the fake objects to the html.
-pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize) -> Result<(), String> {
+pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, req_mapper : Map , n: usize) -> Result<(), String> {
 
     // Slice which contains initial objects
     let obj_for_inlining    = &objects[0..n];
@@ -63,21 +63,23 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, root: &str, n: usize
             _                => panic!("shouldn't happen"),
         };
 
-        let path: String;
+        // let path: String;
 
-        if attr != "style" {
+        // if attr != "style" {
 
-            path = match node_get_attribute(node, attr) {
-                Some(p) if p != "" && !p.starts_with("data:") => p,
-                _ => continue,
-            };
+        //     path = match node_get_attribute(node, attr) {
+        //         Some(p) if p != "" && !p.starts_with("data:") => p,
+        //         _ => continue,
+        //     };
 
-        } else {
-            path = object.uri.clone();
-        }
+        // } else {
+        //     path = object.uri.clone();
+        // }
 
-        let temp = format!("{}/{}", root, path.as_str());
-        let temp = get_img_format_and_ext(&temp, &object.uri);
+        // let temp = format!("{}/{}", root, path.as_str());
+        let requested_uri = format!("/{}", object.uri);
+        println!("URIRURI {}",requested_uri);
+        let temp = get_img_format_and_ext(req_mapper, &requested_uri);
 
         if attr != "style" {
 
