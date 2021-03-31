@@ -21,6 +21,8 @@ pub fn parse_css_images(css_text: &str) -> Vec<String>{
 
 	let mut images_paths: Vec<String> = Vec::new();
 
+	// We basically find every url("style.css"); and
+	// we parse the style.css part of it
 	if css_text.contains("url") {
 		let spl_val: Vec<&str> = css_text.split("\n").collect();
 
@@ -57,6 +59,8 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 	let mut objects: Vec<String> = Vec::new();
 	let mut found_favicon        = false;
 
+	// Searches for link tags (eg. <link rel="stylesheet" href="style.css">)
+	// and saves path attribute, path and kuckiki node to object vector
     for node_data in document.select("link").unwrap() {
 
         let node = node_data.as_node();
@@ -68,8 +72,6 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
 			_                                             => continue,
 		};
-
-		println!("PATH {}",path);
 
 		let temp = format!( "/{}", path.as_str());
 
@@ -88,7 +90,6 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 		dom::insert_empty_favicon(document);
 	}
 
-    // objects.sort_unstable_by( |a, b| b.content.len().cmp( &a.content.len() ) ); // larger first
 	objects
 }
 
@@ -178,6 +179,8 @@ pub fn parse_object_names(document: &NodeRef) -> Vec<String> {
 	let mut objects: Vec<String> = Vec::new();
 	let mut found_favicon        = false;
 
+	// Searches for link, image and script tags (eg. <link rel="stylesheet" href="style.css">)
+	// and saves path attribute, path and kuckiki node to object vector
     for node_data in document.select("img,link,script").unwrap() {
 
         let node = node_data.as_node();
@@ -256,13 +259,12 @@ pub fn parse_objects(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 		let split: Vec<&str> = path.split('?').collect();
 		let relative         = format!("/{}",split[0]);
 
-		println!("REL {}",relative);
-
 		let res = dom::get_map_element(req_mapper, relative);
 
 		objects.push( Object::existing(&res, kind, path, node) );
 	}
 
+	// Finds css images and adds their paths to objects vector
 	for node_data in document.select("style").unwrap() {
 
 		let node         = node_data .as_node();
