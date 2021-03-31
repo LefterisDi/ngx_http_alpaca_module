@@ -84,7 +84,7 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
         morph_probabilistic( &document, &mut objects, &info, &mut orig_n, req_mapper)
 
     } else {
-        morph_deterministic( &document, &mut objects, &info, &mut orig_n, req_mapper )
+        morph_deterministic( &document, &mut objects, &info, &mut orig_n, req_mapper)
     } {
         Ok (s) => s,
         Err(e) => {
@@ -171,6 +171,8 @@ fn morph_probabilistic( document   : &NodeRef        ,
     let final_obj_num: usize;
     let min_html_size: usize;
 
+    // this if defines whether inlining is activated and whether the parameter
+    //for objects returned is greater or smaller than the actual object number
     if target_obj_num < initial_obj_num && !info.obj_inlining_enabled {
         target_obj_num = initial_obj_num;
     }

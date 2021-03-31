@@ -87,6 +87,8 @@ impl Object {
     }
 }
 
+// Calls the map_get C function and converts the output to a
+// u8 vector in order for it to be used accordingly in Rust
 pub fn get_map_element(req_mapper : Map , uri : String) -> Vec<u8> {
 
 	let c_uri    = CString::new(uri).expect("CString::new Failed");

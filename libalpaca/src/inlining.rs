@@ -3,7 +3,7 @@ use parse;
 
 use dom::{Map };
 use morphing::{ MorphInfo};
-use utils::{ get_img_format_and_ext, content_to_c, c_string_to_str };
+use utils::{ get_html_img_inlined_format, content_to_c, c_string_to_str };
 
 #[no_mangle]
 pub extern "C" fn inline_css_content(pinfo: *mut MorphInfo, req_mapper: dom::Map) -> u8 {
@@ -79,7 +79,7 @@ pub fn make_objects_inlined(objects: &mut Vec<dom::Object>, req_mapper : Map , n
         // let temp = format!("{}/{}", root, path.as_str());
         let requested_uri = format!("/{}", object.uri);
         println!("URIRURI {}",requested_uri);
-        let temp = get_img_format_and_ext(req_mapper, &requested_uri);
+        let temp = get_html_img_inlined_format(req_mapper, &requested_uri);
 
         if attr != "style" {
 

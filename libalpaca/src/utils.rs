@@ -193,7 +193,7 @@ pub fn get_file_extension(file_name: &String) -> String {
     split.pop().unwrap().to_owned()
 }
 
-pub fn get_img_format_and_ext(req_mapper: dom::Map , file_name: &String) -> String {
+pub fn get_html_img_inlined_format(req_mapper: dom::Map , file_name: &String) -> String {
 
     // let base_img = fs::read(file_full_path).expect("Unable to read file");
     let base_img = dom::get_map_element(req_mapper, file_name.clone());
