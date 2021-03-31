@@ -95,10 +95,22 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 
 pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
 
-	for node_data in document.select("link").unwrap() {
+    let mut css_inlined = false;
+
+	for node_data in document.select("link,style").unwrap() {
 
         let node      = node_data.as_node();
 		let path_attr = "href";
+
+        if css_inlined {
+            node.previous_sibling().unwrap().detach();
+            css_inlined = false;
+            continue;
+        }
+
+        if node_data.name.local.to_lowercase() == "style" {
+            continue;
+        }
 
         let path = match dom::node_get_attribute(node, path_attr) {
 			Some(p) if p != "" && !p.starts_with("data:") => p       ,
@@ -111,39 +123,12 @@ pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
 
 		let res  = dom::get_map_element(req_mapper, format!("/{}",path) );
 
-		let par  = node.parent().unwrap();
 		let temp = res.iter().map(|&c| c as char).collect::<String>();
 
         let new_node = dom::create_css_node(&temp);
 
-        par.append(new_node);
-	}
-
-	let mut all_removed = false;
-
-    while !all_removed {
-		let mut removed = false;
-
-        for node_data in document.select("link").unwrap() {
-
-            let node      = node_data.as_node();
-			let path_attr = "href";
-
-			let path = match dom::node_get_attribute(node, path_attr) {
-				Some(p) if p != "" && !p.starts_with("data:") => p       ,
-				_                                             => continue,
-			};
-
-			if path.contains("favicon.ico") {
-				continue;
-			}
-			node.detach();
-			removed = true;
-		}
-
-		if !removed {
-			all_removed = true;
-		}
+        node.insert_after(new_node);
+        css_inlined = true;
 	}
 }
 

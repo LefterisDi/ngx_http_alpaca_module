@@ -4,14 +4,14 @@ use libc;
 use parse;
 
 use kuchiki::NodeRef;
-use morphing::{MorphInfo};
+use morphing::MorphInfo;
 
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::c_int;
 use std::fs::File;
 use std::io::prelude::*;
-use std::{path::Path};
+use std::path::Path;
 
 // -----------------------------------------------------------------------------------------------------
 // NODE OBJECT REFERENCE MANIPULATION FUNCTIONS
@@ -216,7 +216,7 @@ pub fn get_img_data_uri(req_mapper: dom::Map, file_name: &String) -> String {
     temp
 }
 
-pub fn copy_file_to_string(fname : &str) -> Result<String, std::io::Error> {
+pub fn copy_file_to_string(fname: &str) -> Result<String, std::io::Error> {
 
     // Create a path to the desired file
     let path    = Path::new(fname);
@@ -250,8 +250,8 @@ pub fn copy_file_to_string(fname : &str) -> Result<String, std::io::Error> {
 // -----------------------------------------------------------------------------------------------------
 // CONTENT FROM RUST TO C AND VICE VERSA FUNCTIONS
 
-// Builds the returned html, stores its size in html_size and returns a
-// 'forgotten' unsafe pointer to the html, for returning to C
+// Builds the returned html, stores its size in html_size and returns
+// a 'forgotten' unsafe pointer to the html, for returning to C
 pub fn document_to_c(document: &NodeRef, info: &mut MorphInfo) -> u8 {
     let content = dom::serialize_html(document);
     return content_to_c(content, info);

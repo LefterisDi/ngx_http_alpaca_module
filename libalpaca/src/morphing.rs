@@ -4,8 +4,8 @@ use pad;
 use parse;
 
 use deterministic::*;
-use dom::{Map, Object, ObjectKind};
-use inlining::{ make_objects_inlined };
+use dom::{ Map, Object, ObjectKind };
+use inlining::make_objects_inlined;
 use kuchiki::NodeRef;
 use pad::{ get_html_padding, get_object_padding };
 

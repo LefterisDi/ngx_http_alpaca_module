@@ -17,7 +17,7 @@ static HTML_COMMENT_END        : &'static str = "-->";
 const  HTML_COMMENT_END_SIZE   : usize        = 3;
 
 // -------------------------------------------------------------------------------------------
-// Private Functions
+// Private Getter Functions
 
 fn get_css_padding(pad_len: usize) -> Vec<u8> {
 
