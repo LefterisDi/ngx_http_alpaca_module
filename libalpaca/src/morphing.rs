@@ -81,7 +81,7 @@ pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
     let mut orig_n = objects.len();
 
     let target_size = match if info.probabilistic != 0 {
-        morph_probabilistic( &document, &mut objects, &info, &mut orig_n, req_mapper)
+        morph_probabilistic( &document, &mut objects, &info, &mut orig_n, req_mapper )
 
     } else {
         morph_deterministic( &document, &mut objects, &info, &mut orig_n, req_mapper)
@@ -138,7 +138,7 @@ fn morph_probabilistic( document   : &NodeRef        ,
                         objects    : &mut Vec<Object>,
                         info       : &MorphInfo      ,
                         new_orig_n : &mut usize      ,
-                        req_mapper : Map) -> Result<usize, String>
+                        req_mapper : Map              ) -> Result<usize, String>
 {
     let dist_html_size = Dist::from( c_string_to_str(info.dist_html_size )? )?;
     let dist_obj_num   = Dist::from( c_string_to_str(info.dist_obj_num   )? )?;
@@ -327,7 +327,7 @@ fn morph_deterministic( document   : &NodeRef        ,
                         objects    : &mut Vec<Object>,
                         info       : &MorphInfo      ,
                         new_orig_n : &mut usize      ,
-                        req_mapper : Map ) -> Result<usize, String>
+                        req_mapper : Map              ) -> Result<usize, String>
 {
     // We'll have at least as many objects as the original ones
     let initial_obj_no = objects.len();
