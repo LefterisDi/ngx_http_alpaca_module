@@ -50,8 +50,8 @@ pub struct MorphInfo {
 
 
 #[no_mangle]
-// It samples a new page using probabilistic morphing, changes
-// the references to its objects accordingly, and pads it
+// It samples a new page using probabilistic/deterministic morphing,
+// changes the references to its objects accordingly, and pads it
 pub extern "C" fn morph_html(pinfo: *mut MorphInfo, req_mapper: Map) -> u8 {
 
     std::env::set_var("RUST_BACKTRACE", "full");
