@@ -433,9 +433,9 @@ static ngx_int_t ngx_http_alpaca_init(ngx_conf_t* cf) {
 
 // -----------------------------------------------------------------------------------------------------
 
-int8_t execute_subrequests( int                        *subreq_tbd,
-                            struct MorphInfo          **main_info ,
+int8_t execute_subrequests( struct MorphInfo          **main_info ,
                             map                        *req_mapper,
+                            int                        *subreq_tbd,
                             ngx_chain_t                *in        ,
                             ngx_http_alpaca_ctx_t      *ctx       ,
                             ngx_http_alpaca_loc_conf_t *plcf      ,
@@ -742,7 +742,6 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
     if ( !is_fake_image(r) && !plcf->prob_enabled && !plcf->deter_enabled )
         return ngx_http_next_body_filter(r, in);
 
-
     // Get the module context
     ctx = ngx_http_get_module_ctx(r, ngx_http_alpaca_module);
 
@@ -800,7 +799,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
             // If there are subrequests to be done, don't return the html body
             // because the objects should be padded first
-            int8_t subreq_res = execute_subrequests( &subreq_tbd, &main_info, &req_mapper, in, ctx, plcf, core_plcf, r );
+            int8_t subreq_res = execute_subrequests( &main_info, &req_mapper, &subreq_tbd, in, ctx, plcf, core_plcf, r );
 
             if ( subreq_res == -1 )
                 return NGX_ERROR;
