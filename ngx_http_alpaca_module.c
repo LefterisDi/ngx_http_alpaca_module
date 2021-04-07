@@ -562,8 +562,8 @@ void simple_html_morph( struct MorphInfo       *main_info ,
 
 bool pad_object( u_char                **response     ,
                  ngx_uint_t             *response_size,
-                 ngx_http_alpaca_ctx_t  *ctx,
-                 ngx_http_request_t     *r             )
+                 ngx_http_alpaca_ctx_t  *ctx          ,
+                 ngx_http_request_t     *r              )
 {
 
     // Call ALPaCA to get the padding
