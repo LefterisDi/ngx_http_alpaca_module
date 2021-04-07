@@ -499,6 +499,27 @@ int8_t execute_subrequests( int                        *subreq_tbd,
     return 1;
 }
 
+void execute_html_object_subrequests( struct MorphInfo   *main_info ,
+                                      int                *subreq_tbd,
+                                      ngx_http_request_t *r           )
+{
+    int rc = NGX_OK;
+    u_char **objects = NULL;
+    ngx_http_request_t *sr = NULL;
+
+    objects = get_html_required_files(main_info , subreq_tbd);
+
+    // Do subrequests for all HTML files
+    for (int i=0 ; rc == NGX_OK && i < *subreq_tbd ; i++) {
+
+        ngx_str_t uri;
+
+        (&uri)->len  = strlen( (const char *)objects[i] );
+        (&uri)->data = (u_char *)objects[i];
+
+        ngx_http_subrequest(r, &uri , NULL, &sr, NULL, 0);
+    }
+}
 
 void simple_html_morph( struct MorphInfo       *main_info ,
                         map                     req_mapper,
@@ -567,6 +588,65 @@ bool pad_object( u_char                **response     ,
     *response_size = info.size;
 
     return true;
+}
+
+void map_insert_response( map                    req_mapper,
+                          u_char                *response  ,
+                          ngx_http_alpaca_ctx_t *ctx       ,
+                          ngx_http_request_t    *r           )
+{
+    request_data* req_data = malloc(sizeof(request_data));
+    req_data->content      = malloc(ctx->size);
+
+    memset(req_data->content, 0, ctx->size);
+    memcpy(req_data->content, response, ctx->size);
+
+    req_data->length = ctx->size;
+
+    map_set(req_mapper, (char *)r->uri.data, req_data);
+}
+
+void process_html_objects( map                     req_mapper,
+                           struct MorphInfo       *main_info ,
+                           u_char                **response  ,
+                           ngx_http_alpaca_ctx_t  *ctx       ,
+                           ngx_http_request_t     *r           )
+{
+    // Copy the initial response of the html to a string in order to return it in case of error
+    u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char));
+    memset( (char *)init_response , 0, main_info->size);
+    memcpy( (char *)init_response, (char *)main_info->content, main_info->size );
+
+    if ( morph_html(main_info, req_mapper) ) {
+
+        // Copy the morphed html and free the memory that was
+        // allocated in rust using the custom "free memory" funtion
+        *response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
+
+        ngx_memcpy(*response, main_info->content, main_info->size);
+        ngx_pfree (r->pool, ctx->response);
+
+        free_memory(main_info->content, main_info->size);
+
+        ctx->size = main_info->size;
+
+    } else {
+
+        // Alpaca failed. This might happen if the content was not
+        // really html, eg it was proxied from some upstream server
+        // that returned gziped content. We log this and return the
+        // original content
+        ngx_log_error( NGX_LOG_ERR                                            ,
+                       r->connection->log                                     ,
+                       0                                                      ,
+                       "[Alpaca filter]: could not process html content. If "
+                       "you use proxy_pass, set proxy_set_header "
+                       "Accept-Encoding \"\" so that the upstream server "
+                       "returns raw html, "
+                     );
+
+        *response = init_response;
+    }
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -726,22 +806,17 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
                 return NGX_ERROR;
 
             if ( subreq_res ) {
-
                 ngx_http_set_ctx(r, NULL, ngx_http_alpaca_module);
                 send_response(r, ctx->size, response, &out, false);
-
-                return ngx_http_next_body_filter(r, &out);
-
 
             // If there are no files inside the given html,
             // pad the html body and return it
             } else {
-
                 simple_html_morph(main_info, req_mapper, &response, ctx, r);
                 send_response(r, ctx->size, response, &out, true);
-
-                return ngx_http_next_body_filter(r, &out);
             }
+
+            return ngx_http_next_body_filter(r, &out);
         }
 
         // Do not call the next filter unless the whole html has been captured
@@ -766,7 +841,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
             ngx_uint_t response_size;
 
             if ( !pad_object( &response, &response_size, ctx, r) ) {
-				// Call the next filter if something went wrong
+                // Call the next filter if something went wrong
 				return ngx_http_next_body_filter(r, in);
             }
 
@@ -774,120 +849,51 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 
 			cl->buf->last_buf = 0;
 			cl->next          = &out;
-
-			return ngx_http_next_body_filter(r, in);
 		}
 
 		return ngx_http_next_body_filter(r, in);
 
-    // Subrequests
+    // Process subrequests
     } else if (r != r->main) {
 
-		if ( is_css(r) && r->headers_out.status != 404 ) {
+        if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
 
-        	if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
+            // Counts how many subrequests have been processed
+            subreq_count++;
 
-                // Counts how many subrequests have been done
-				subreq_count++;
+            // Create and pass request data structure to the map
+            map_insert_response(req_mapper, response, ctx, r);
 
-                // Create and pass request data structure to the map
-				request_data* req_data = malloc(sizeof(request_data));
-				req_data->content      = malloc(ctx->size);
+            // ---------------------------------------------------------------
 
-                memset(req_data->content, 0, ctx->size);
-                memcpy(req_data->content, response, ctx->size);
+            if ( r->headers_out.status != 404 ) {
 
-                req_data->length = ctx->size;
-
-                map_set(req_mapper, (char *)r->uri.data, req_data);
-
-				printf("FIRST %s %ld\n", r->uri.data , r->uri.len);
-
+                // When True, all subrequests have been processed
+                // and we are processing the very last one
 				if (subreq_count == subreq_tbd) {
 
-					int rc = NGX_OK;
-					u_char **objects = NULL;
-					ngx_http_request_t *sr = NULL;
+                    // We are processing the last CSS subrequest
+                    if ( is_css(r) ) {
 
-					inline_css_content(main_info , req_mapper);
+                        subreq_count = 0;
 
-					objects = get_html_required_files(main_info , &subreq_tbd);
-					subreq_count = 0;
+                        inline_css_content(main_info, req_mapper);
 
-                    // Do subrequestsfor the rest of the files that exists inside the html
-					for (int i=0 ; rc == NGX_OK && i < subreq_tbd ; i++) {
-						ngx_str_t uri;
+                        execute_html_object_subrequests(main_info, &subreq_tbd, r);
 
-						(&uri)->len  = strlen( (const char *)objects[i] );
-						(&uri)->data = (u_char *)objects[i];
+                    // We are processing the last subrequest for HTML objects
+                    } else {
 
-						printf("SUB for %s %ld\n",uri.data , uri.len);
-						ngx_http_subrequest(r, &uri , NULL /* args */, &sr, NULL /* cb */, 0 /* flags */);
-					}
+                        process_html_objects(req_mapper, main_info, &response, ctx, r);
+
+                        send_response(r, main_info->size, response, &out, true);
+
+                        return ngx_http_next_body_filter(r, &out);
+                    }
+
 				}
-			}
-
-        } else {
-
-            if ( ( response = get_response(ctx , r , in , false) ) != NULL ) {
-
-                // Counts how many subrequests have been done
-                subreq_count++;
-
-                // Create and pass request data structure to the map
-				request_data* req_data = malloc(sizeof(request_data));
-				req_data->content      = malloc(ctx->size);
-
-                memset (req_data->content, 0, ctx->size);
-                memcpy (req_data->content, response, ctx->size);
-
-                req_data->length = ctx->size;
-
-                map_set(req_mapper, (char *)r->uri.data, req_data);
-
-				if (subreq_count == subreq_tbd) {
-
-                    // Copy the initial response of the html to a string in order to return it in case of error
-					u_char* init_response = ngx_pcalloc(r->pool , main_info->size * sizeof(u_char) + 1);
-					strcpy( (char *)init_response, (char *)main_info->content );
-
-
-					if ( morph_html(main_info, req_mapper) ) {
-
-						// Copy the morphed html and free the memory that was
-						// allocated in rust using the custom "free memory" funtion
-						response = ngx_pcalloc( r->pool, main_info->size * sizeof(u_char) );
-
-						ngx_memcpy(response, main_info->content, main_info->size);
-						ngx_pfree (r->pool, ctx->response);
-
-						free_memory(main_info->content, main_info->size);
-
-						ctx->size = main_info->size;
-
-					} else {
-
-						// Alpaca failed. This might happen if the content was not
-						// really html, eg it was proxied from some upstream server
-						// that returned gziped content. We log this and return the
-						// original content
-						ngx_log_error( NGX_LOG_ERR                                            ,
-                                       r->connection->log                                     ,
-                                       0                                                      ,
-                                       "[Alpaca filter]: could not process html content. If "
-                                       "you use proxy_pass, set proxy_set_header "
-                                       "Accept-Encoding \"\" so that the upstream server "
-                                       "returns raw html, "
-									 );
-						response = init_response;
-					}
-
-                    send_response(r ,main_info->size , response, &out, true);
-
-					return ngx_http_next_body_filter(r, &out);
-				}
-			}
-		}
+            }
+        }
     }
 
     return ngx_http_next_body_filter(r, in);
