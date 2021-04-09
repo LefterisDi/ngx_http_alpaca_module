@@ -6,23 +6,27 @@ from response_handler import get_response_filenames
 
 methods = {
     'deter_simple'      : '/Deterministic/nginx_simple.conf',
-    # 'deter_fake_imgs'   : '/Deterministic/nginx_fake_imgs.conf',
-    # 'deter_inline_all'  : '/Deterministic/nginx_inline_all.conf',
-    # 'deter_inline_some' : '/Deterministic/nginx_inline_some.conf',
+    'deter_reloc'       : '/Deterministic/nginx_simple.conf',
+    'deter_fake_imgs'   : '/Deterministic/nginx_fake_imgs.conf',
+    'deter_inline_all'  : '/Deterministic/nginx_inline_all.conf',
+    'deter_inline_some' : '/Deterministic/nginx_inline_some.conf',
 
-    # 'prob_simple'       : '/Probabilistic/nginx_simple.conf',
-    # 'prob_fake_imgs'    : '/Probabilistic/nginx_fake_imgs.conf',
-    # 'prob_inline_all'   : '/Probabilistic/nginx_inline_all.conf',
-    # 'prob_inline_some'  : '/Probabilistic/nginx_inline_some.conf',
+    'prob_simple'       : '/Probabilistic/nginx_simple.conf',
+    'prob_reloc'        : '/Probabilistic/nginx_simple.conf',
+    'prob_fake_imgs'    : '/Probabilistic/nginx_fake_imgs.conf',
+    'prob_inline_all'   : '/Probabilistic/nginx_inline_all.conf',
+    'prob_inline_some'  : '/Probabilistic/nginx_inline_some.conf',
 }
 
 inlines = {
     'deter_simple'      : 0,
+    'deter_reloc'       : 0,
     'deter_fake_imgs'   : 0,
     'deter_inline_all'  : 3,
     'deter_inline_some' : 2,
 
     'prob_simple'       : 0,
+    'prob_reloc'        : 0,
     'prob_fake_imgs'    : 0,
     'prob_inline_all'   : 3,
     'prob_inline_some'  : 2,
@@ -30,11 +34,13 @@ inlines = {
 
 fake_imgs = {
     'deter_simple'      : 2,
+    'deter_reloc'       : 2,
     'deter_fake_imgs'   : 3,
     'deter_inline_all'  : 0,
     'deter_inline_some' : 0,
 
     'prob_simple'       : 2,
+    'prob_reloc'       : 2,
     'prob_fake_imgs'    : [1,2,3,4],
     'prob_inline_all'   : 0,
     'prob_inline_some'  : 0,
