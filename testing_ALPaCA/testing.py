@@ -67,8 +67,6 @@ def get_alpaca_target_size(file):
 
 if __name__ == "__main__":
 
-    # https://chromedriver.storage.googleapis.com/90.0.4430.24/chromedriver_linux64.zip
-
     chromedriver_autoinstaller.install(True)
 
     chrome_ver        = chromedriver_autoinstaller.get_chrome_version().split('.')[0]
