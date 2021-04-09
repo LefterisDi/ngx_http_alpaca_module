@@ -8,10 +8,10 @@ def process_browser_log_entry(entry):
     response = json.loads(entry['message'])['message']
     return response
 
-def get_response_filenames(url):
+def get_response_filenames(url , chromedriver_path):
 
     resp_files        = []
-    chromedriver_path = "./venv/chromedriver"
+    chromedriver_path = chromedriver_path
 
     options           = Options()
     options.headless  = True

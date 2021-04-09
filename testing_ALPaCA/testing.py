@@ -1,5 +1,6 @@
 import os
 import pathlib
+import chromedriver_autoinstaller
 
 from utils            import colors
 from response_handler import get_response_filenames
@@ -66,6 +67,13 @@ def get_alpaca_target_size(file):
 
 if __name__ == "__main__":
 
+    # https://chromedriver.storage.googleapis.com/90.0.4430.24/chromedriver_linux64.zip
+
+    chromedriver_autoinstaller.install(True)
+
+    chrome_ver        = chromedriver_autoinstaller.get_chrome_version().split('.')[0]
+    chromedriver_path = "./{}/chromedriver".format(chrome_ver)
+
     os.system("fuser -k 8888/tcp >/dev/null 2>&1")
 
     for conf_name in methods:
@@ -73,7 +81,7 @@ if __name__ == "__main__":
         run_nginx(methods[conf_name])
 
         url = 'http://localhost:8888'
-        resp_files , timed_out = get_response_filenames(url)
+        resp_files , timed_out = get_response_filenames(url, chromedriver_path)
 
         if (timed_out):
             print("Connection Timed Out!")
