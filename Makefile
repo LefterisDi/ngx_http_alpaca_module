@@ -17,6 +17,11 @@ NGX_MODULES_PATH ?= $(shell nginx -V 2>&1 | grep -oE -- '--modules-path=\S+' | s
 # - we add our LD_OPT to the existing --with-ld-opt='...'
 #
 LD_OPT = ..\/..\/libalpaca\/target\/$(BUILD_TYPE)\/libalpaca.a -lm
+MAIN_DIR ?= $(shell pwd)
+MAIN_DIR_ESC = $(subst /,\/,$(MAIN_DIR))
+$(info MAIN_DIR: $(MAIN_DIR_ESC))
+
+
 NGX_CONF ?= $(shell \
 	nginx -V 2>&1 | \
 	grep configure | \
@@ -25,6 +30,7 @@ NGX_CONF ?= $(shell \
 		s/--add-dynamic-module=\S+//g; \
 		s/--with-\S+=dynamic//g; \
 		s/--with-ld-opt='/--with-ld-opt='$(LD_OPT) / or s/^/--with-ld-opt='$(LD_OPT)' /; \
+		s/--prefix=\/usr\/share\/nginx/--prefix=$(MAIN_DIR_ESC) / or s/^/--prefix=$(MAIN_DIR_ESC) /; \
 	" \
 )
 # $(info NGX_CONF: $(NGX_CONF))
