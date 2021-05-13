@@ -54,7 +54,7 @@ typedef struct {
 
     ngx_flag_t use_total_obj_size;
     ngx_flag_t obj_inlining_enabled;
-    // ngx_uint_t obj_inlining_num;
+    ngx_flag_t css_inlining_enabled;
 } ngx_http_alpaca_loc_conf_t;
 
 // Keep a state for each request
@@ -153,6 +153,12 @@ static ngx_command_t ngx_http_alpaca_commands[] = {
         NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
         ngx_conf_set_flag_slot, NGX_HTTP_LOC_CONF_OFFSET,
         offsetof(ngx_http_alpaca_loc_conf_t, obj_inlining_enabled), NULL
+    },
+    {
+        ngx_string("alpaca_css_inlining_enabled"),
+        NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+        ngx_conf_set_flag_slot, NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_alpaca_loc_conf_t, css_inlining_enabled), NULL
     },
     ngx_null_command
 };
@@ -363,6 +369,7 @@ static void* ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf) {
     conf->max_obj_size         = NGX_CONF_UNSET_UINT;
     conf->use_total_obj_size   = NGX_CONF_UNSET;
     conf->obj_inlining_enabled = NGX_CONF_UNSET;
+    conf->css_inlining_enabled = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -382,6 +389,7 @@ static char* ngx_http_alpaca_merge_loc_conf(ngx_conf_t* cf, void* parent, void* 
     ngx_conf_merge_str_value (conf->dist_obj_size       , prev->dist_obj_size       , "");
     ngx_conf_merge_value     (conf->use_total_obj_size  , prev->use_total_obj_size  , 0 );
     ngx_conf_merge_value     (conf->obj_inlining_enabled, prev->obj_inlining_enabled, 0 );
+    ngx_conf_merge_value     (conf->css_inlining_enabled, prev->css_inlining_enabled, 0 );
 
 
     // Check if the directives' arguments are properly set
@@ -467,7 +475,9 @@ int8_t execute_subrequests( struct MorphInfo          **main_info ,
 
     // Collects required css filenames. If not activated or no files were found
     // then we get every other filename that can be padded inside the given html
-    objects = get_required_css_files(*main_info, subreq_tbd);
+    if (plcf->css_inlining_enabled) {
+        objects = get_required_css_files(*main_info, subreq_tbd);
+    }
 
     if (*subreq_tbd == 0)
         objects = get_html_required_files(*main_info, subreq_tbd);
@@ -872,7 +882,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				if (subreq_count == subreq_tbd) {
 
                     // We are processing the last CSS subrequest
-                    if ( is_css(r) ) {
+                    if ( is_css(r) && plcf->css_inlining_enabled) {
 
                         subreq_count = 0;
 
