@@ -66,33 +66,32 @@ typedef struct {
 } ngx_http_alpaca_ctx_t;
 
 typedef struct {
-	u_char* 	content;
-	u_int32_t 	length;
+	u_char*    content;
+	u_int32_t  length;
 } request_data;
 
 // -----------------------------------------------------------------------------------------------------
 
-u_char** get_html_required_files(struct MorphInfo* info , int* length);
-u_char** get_required_css_files (struct MorphInfo* info , int* length);
-u_char   inline_css_content     (struct MorphInfo* info , map req_mapper);
-u_char   morph_html             (struct MorphInfo* info , map req_mapper);
-u_char   morph_object           (struct MorphInfo* info);
+u_char** get_html_required_files(struct MorphInfo *info , int *length);
+u_char** get_required_css_files (struct MorphInfo *info , int *length);
+u_char   inline_css_content     (struct MorphInfo *info , map req_mapper);
+u_char   morph_html             (struct MorphInfo *info , map req_mapper);
+u_char   morph_object           (struct MorphInfo *info);
 
 void free_memory(u_char* data, ngx_uint_t size);
 
 // -----------------------------------------------------------------------------------------------------
 
-static ngx_int_t ngx_http_alpaca_header_filter  (ngx_http_request_t* r);
-static ngx_int_t ngx_http_alpaca_body_filter    (ngx_http_request_t* r, ngx_chain_t* in);
+static ngx_int_t ngx_http_alpaca_header_filter  (ngx_http_request_t *r);
+static ngx_int_t ngx_http_alpaca_body_filter    (ngx_http_request_t *r, ngx_chain_t *in);
+static ngx_int_t ngx_http_alpaca_init           (ngx_conf_t *cf);
 
-static void*     ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf);
-static char*     ngx_http_alpaca_merge_loc_conf (ngx_conf_t* cf, void* parent, void* child);
-
-static ngx_int_t ngx_http_alpaca_init           (ngx_conf_t* cf);
+static void*     ngx_http_alpaca_create_loc_conf(ngx_conf_t *cf);
+static char*     ngx_http_alpaca_merge_loc_conf (ngx_conf_t *cf, void *parent, void *child);
 
 // -----------------------------------------------------------------------------------------------------
 
-//These are the ALPaCA commands/directives given in the nginx.conf
+// These are the ALPaCA commands/directives given in the nginx.conf
 static ngx_command_t ngx_http_alpaca_commands[] = {
     {
         ngx_string("alpaca_prob"),
@@ -882,7 +881,7 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				if (subreq_count == subreq_tbd) {
 
                     // We are processing the last CSS subrequest
-                    if ( is_css(r) && plcf->css_inlining_enabled) {
+                    if ( is_css(r) && plcf->css_inlining_enabled ) {
 
                         subreq_count = 0;
 
