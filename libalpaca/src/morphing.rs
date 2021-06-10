@@ -13,6 +13,7 @@ use distribution::{ sample_ge     ,
                     sample_ge_many,
                     sample_pair_ge,
                     Dist            };
+
 use utils::{ keep_local_objects ,
              document_to_c      ,
              content_to_c       ,
@@ -22,11 +23,13 @@ use utils::{ keep_local_objects ,
 
 #[repr(C)]
 pub struct MorphInfo {
+
     // Request info
     alias                : usize    ,
     content_type         : *const u8,
     http_host            : *const u8,
     pub content          : *const u8, // u8 = uchar
+
     pub size             : usize    ,
     pub uri              : *const u8,
     query                : *const u8, // part after ?
@@ -45,7 +48,9 @@ pub struct MorphInfo {
     obj_size             : usize    ,
 
     // for object inlining
-    obj_inlining_enabled : bool     ,
+    obj_inlining_enabled : usize    ,
+    force_css_inlining   : usize    ,
+    css_as_inline_object : usize    ,
 }
 
 
@@ -140,21 +145,22 @@ fn morph_probabilistic( document   : &NodeRef        ,
                         new_orig_n : &mut usize      ,
                         req_mapper : Map              ) -> Result<usize, String>
 {
-    let dist_html_size = Dist::from( c_string_to_str(info.dist_html_size )? )?;
-    let dist_obj_num   = Dist::from( c_string_to_str(info.dist_obj_num   )? )?;
-    let dist_obj_size  = Dist::from( c_string_to_str(info.dist_obj_size  )? )?;
+    let dist_html_size = Dist::from( c_string_to_str( info.dist_html_size )? )?;
+    let dist_obj_num   = Dist::from( c_string_to_str( info.dist_obj_num   )? )?;
+    let dist_obj_size  = Dist::from( c_string_to_str( info.dist_obj_size  )? )?;
 
     // We'll have at least as many objects as the original ones
     let initial_obj_num = objects.len();
     // let s = info.obj_inlining_enabled == true ? 1 : 0;
 
     let lower_bound_obj_num = match info.obj_inlining_enabled {
-        true  => 0,
-        false => initial_obj_num
+        1 => 0,
+        0 => initial_obj_num,
+        _ => panic!("Object Inlining Directive can be only on/off.")
     };
 
     // Sample target number of objects (count)
-    let mut target_obj_num = match sample_ge(&dist_obj_num,lower_bound_obj_num) {
+    let mut target_obj_num = match sample_ge(&dist_obj_num, lower_bound_obj_num) {
 
         Ok (c) => c,
         Err(e) => {
@@ -171,13 +177,13 @@ fn morph_probabilistic( document   : &NodeRef        ,
     let final_obj_num: usize;
     let min_html_size: usize;
 
-    // this if defines whether inlining is activated and whether the parameter
-    //for objects returned is greater or smaller than the actual object number
-    if target_obj_num < initial_obj_num && !info.obj_inlining_enabled {
+    // This if defines whether inlining is activated and whether the parameter
+    // for objects returned is greater or smaller than the actual object number
+    if target_obj_num < initial_obj_num && info.obj_inlining_enabled == 0 {
         target_obj_num = initial_obj_num;
     }
 
-    if target_obj_num < initial_obj_num && info.obj_inlining_enabled {
+    if target_obj_num < initial_obj_num && info.obj_inlining_enabled != 0 {
 
         final_obj_num = target_obj_num;
         min_html_size = content.len()
@@ -194,6 +200,17 @@ fn morph_probabilistic( document   : &NodeRef        ,
 
     let target_html_size;
 
+    let mut count_css_objects: usize = 0;
+
+    if info.obj_inlining_enabled != 0 && info.css_as_inline_object == 0 && info.force_css_inlining == 0 {
+
+        for object in objects.iter() {
+            if object.kind == dom::ObjectKind::CSS {
+                count_css_objects += 1;
+            }
+        }
+    }
+
     // Find object sizes
     if info.use_total_obj_size == 0 {
 
@@ -204,7 +221,7 @@ fn morph_probabilistic( document   : &NodeRef        ,
         // And then we'll use the largest to pad existing objects and the smallest for padding objects.
         let mut target_obj_sizes: Vec<usize>;
 
-        let samples_num = match target_obj_num < initial_obj_num && info.obj_inlining_enabled {
+        let samples_num = match target_obj_num < initial_obj_num && info.obj_inlining_enabled != 0 {
             true  => initial_obj_num,
             false => target_obj_num
         };
@@ -238,17 +255,13 @@ fn morph_probabilistic( document   : &NodeRef        ,
             };
         }
 
-        if target_obj_num < initial_obj_num && info.obj_inlining_enabled{
 
-            // let root      = c_string_to_str(info.root)     .unwrap();
-            // let http_host = c_string_to_str(info.http_host).unwrap();
-
-            // let full_root = String::from(root).replace("$http_host", http_host);
+        if target_obj_num < initial_obj_num && info.obj_inlining_enabled != 0 {
 
             // Insert refs and add padding
-            make_objects_inlined( objects, req_mapper , initial_obj_num - target_obj_num).unwrap();
+            make_objects_inlined( objects, req_mapper, initial_obj_num - target_obj_num - count_css_objects, info.css_as_inline_object ).unwrap();
 
-            *new_orig_n = target_obj_num;
+            *new_orig_n = objects.len();
 
         } else {
 
@@ -282,29 +295,18 @@ fn morph_probabilistic( document   : &NodeRef        ,
             target_obj_size  = sample_ge( &dist_obj_size, min_obj_size   )?;
         }
 
-        // create empty fake images
-        // if target_obj_size > 0 && target_obj_num == 0 {
-        //     // we chose a non-zero target_obj_size but have no objects to pad, create a fake one
-        //     target_obj_num = 1;
-        // }
+        if target_obj_num < initial_obj_num && info.obj_inlining_enabled != 0 {
 
-        if target_obj_num < initial_obj_num && info.obj_inlining_enabled {
+            // Insert refs and add padding
+            make_objects_inlined( objects, req_mapper, initial_obj_num - target_obj_num - count_css_objects, info.css_as_inline_object ).unwrap();
 
-            // let root      = c_string_to_str(info.root)     .unwrap();
-            // let http_host = c_string_to_str(info.http_host).unwrap();
-
-            // let full_root = String::from(root).replace("$http_host", http_host);
-
-            //insert refs and add padding
-            make_objects_inlined( objects, req_mapper, initial_obj_num - target_obj_num ).unwrap();
-
-            *new_orig_n = target_obj_num;
+            *new_orig_n = objects.len();
 
         } else {
 
             // Create padding objects, using the smallest of the sizes
             for _ in 0..final_obj_num {
-                objects.push(Object::fake_image(0));
+                objects.push( Object::fake_image(0) );
             }
         }
 
@@ -315,7 +317,7 @@ fn morph_probabilistic( document   : &NodeRef        ,
 
             let pad = to_split / (target_obj_num - pos);
 
-            obj.target_size = Some(obj.content.len() + pad::min_obj_padding(obj) + pad);
+            obj.target_size = Some( obj.content.len() + pad::min_obj_padding(obj) + pad );
             to_split -= pad;
         }
     }
@@ -340,7 +342,7 @@ fn morph_deterministic( document   : &NodeRef        ,
 
     let target_count;
 
-    if info.obj_inlining_enabled {
+    if info.obj_inlining_enabled != 0 {
         target_count = info.obj_num;
     } else {
         target_count = get_multiple(info.obj_num, initial_obj_no);
@@ -354,28 +356,34 @@ fn morph_deterministic( document   : &NodeRef        ,
                             _ => 0,
                         };
 
-        let obj_target_size  = get_multiple(info.obj_size, min_size);
+        let obj_target_size = get_multiple(info.obj_size, min_size);
 
         objects[i].target_size = Some(obj_target_size);
     }
 
-    if target_count < initial_obj_no && info.obj_inlining_enabled {
+    let mut count_css_objects: usize = 0;
 
-        // let root      = c_string_to_str(info.root).unwrap();
-        // let http_host = c_string_to_str(info.http_host).unwrap();
+    if info.obj_inlining_enabled != 0 && info.css_as_inline_object == 0 && info.force_css_inlining == 0 {
+        for object in objects.iter() {
+            if object.kind == dom::ObjectKind::CSS {
+                count_css_objects += 1;
+            }
+        }
+    }
 
-        // let full_root = String::from(root).replace("$http_host", http_host);
+    if target_count < initial_obj_no && info.obj_inlining_enabled != 0 {
 
         // Insert refs and add padding
-        make_objects_inlined(objects, req_mapper, initial_obj_no - target_count).unwrap();
+        make_objects_inlined( objects, req_mapper, initial_obj_no - target_count - count_css_objects, info.css_as_inline_object ).unwrap();
 
-        *new_orig_n = target_count;
+        *new_orig_n = objects.len();
 
     } else {
 
         let fake_objects_sizes: Vec<usize>;
 
-        let fake_objects_count = target_count - initial_obj_no; // The number of fake objects
+        // The number of fake objects
+        let fake_objects_count = target_count - initial_obj_no;
 
         // To get the target size of each fake object, sample uniformly a multiple
         // of "obj_size" which is smaller than "max_obj_size"
@@ -391,5 +399,5 @@ fn morph_deterministic( document   : &NodeRef        ,
     let content = dom::serialize_html(&document);
     let html_min_size = content.len() + 7; // Plus 7 because of the comment characters.
 
-    Ok(get_multiple(info.obj_size, html_min_size))
+    Ok( get_multiple(info.obj_size, html_min_size) )
 }

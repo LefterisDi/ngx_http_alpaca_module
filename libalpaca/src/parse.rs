@@ -93,7 +93,7 @@ pub fn parse_css_names(document: &NodeRef) -> Vec<String> {
 	objects
 }
 
-pub fn parse_css_and_inline(document: &NodeRef, req_mapper : Map) -> () {
+pub fn parse_css_and_inline(document: &NodeRef, req_mapper: Map) -> () {
 
     let mut css_inlined = false;
 
@@ -240,7 +240,7 @@ pub fn parse_objects(document: &NodeRef, req_mapper: Map) -> Vec<Object> {
 			_                                            => continue                                 ,
 		};
 
-		/* Consider the posibility that the css file already has some GET parameters */
+		// Consider the posibility that the css file already has some GET parameters
 		let split: Vec<&str> = path.split('?').collect();
 		let relative         = format!("/{}",split[0]);
 
