@@ -37,6 +37,8 @@ struct MorphInfo {
 
     // for object inlining
     ngx_uint_t obj_inlining_enabled;
+    ngx_uint_t force_css_inlining;
+    ngx_uint_t css_as_inline_object;
 };
 
 // This struct fills up from config
@@ -54,7 +56,8 @@ typedef struct {
 
     ngx_flag_t use_total_obj_size;
     ngx_flag_t obj_inlining_enabled;
-    ngx_flag_t css_inlining_enabled;
+    ngx_flag_t force_css_inlining;
+    ngx_flag_t css_as_inline_object;
 } ngx_http_alpaca_loc_conf_t;
 
 // Keep a state for each request
@@ -74,7 +77,7 @@ typedef struct {
 
 u_char** get_html_required_files(struct MorphInfo *info , int *length);
 u_char** get_required_css_files (struct MorphInfo *info , int *length);
-u_char   inline_css_content     (struct MorphInfo *info , map req_mapper);
+u_char   inline_all_css         (struct MorphInfo *info , map req_mapper);
 u_char   morph_html             (struct MorphInfo *info , map req_mapper);
 u_char   morph_object           (struct MorphInfo *info);
 
@@ -154,10 +157,16 @@ static ngx_command_t ngx_http_alpaca_commands[] = {
         offsetof(ngx_http_alpaca_loc_conf_t, obj_inlining_enabled), NULL
     },
     {
-        ngx_string("alpaca_css_inlining_enabled"),
+        ngx_string("alpaca_force_css_inlining"),
         NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
         ngx_conf_set_flag_slot, NGX_HTTP_LOC_CONF_OFFSET,
-        offsetof(ngx_http_alpaca_loc_conf_t, css_inlining_enabled), NULL
+        offsetof(ngx_http_alpaca_loc_conf_t, force_css_inlining), NULL
+    },
+    {
+        ngx_string("alpaca_css_as_inline_object"),
+        NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+        ngx_conf_set_flag_slot, NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_alpaca_loc_conf_t, css_as_inline_object), NULL
     },
     ngx_null_command
 };
@@ -235,8 +244,11 @@ static u_char* copy_ngx_str(ngx_str_t str, ngx_pool_t* pool) {
     return res;
 }
 
-static u_char* get_response(ngx_http_alpaca_ctx_t* ctx, ngx_http_request_t* r, ngx_chain_t* in , bool send) {
-
+static u_char* get_response(ngx_http_alpaca_ctx_t *ctx ,
+                            ngx_http_request_t    *r   ,
+                            ngx_chain_t           *in  ,
+                            bool                   send )
+{
     u_char    *response;
     ngx_uint_t curr_chain_size = 0;
 
@@ -293,8 +305,8 @@ static u_char* get_response(ngx_http_alpaca_ctx_t* ctx, ngx_http_request_t* r, n
 struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t         *r        ,
                                                ngx_http_core_loc_conf_t   *core_plcf,
                                                ngx_http_alpaca_loc_conf_t *plcf     ,
-                                               ngx_http_alpaca_ctx_t      *ctx       ) {
-
+                                               ngx_http_alpaca_ctx_t      *ctx       )
+{
     struct MorphInfo *main_info = NULL;
 
     main_info = malloc( sizeof(struct MorphInfo) );
@@ -314,6 +326,8 @@ struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t         *r    
 
     main_info->max_obj_size         = plcf->max_obj_size;
     main_info->obj_inlining_enabled = plcf->obj_inlining_enabled;
+    main_info->force_css_inlining   = plcf->force_css_inlining;
+    main_info->css_as_inline_object = plcf->css_as_inline_object;
     main_info->obj_num              = plcf->obj_num;
     main_info->obj_size             = plcf->obj_size;
     main_info->probabilistic        = plcf->prob_enabled;
@@ -322,8 +336,12 @@ struct MorphInfo* initialize_morph_html_struct(ngx_http_request_t         *r    
     return main_info;
 }
 
-static ngx_int_t send_response(ngx_http_request_t* r, ngx_uint_t resp_size, u_char* response, ngx_chain_t* out, bool in_memory) {
-
+static ngx_int_t send_response(ngx_http_request_t *r        ,
+                               ngx_uint_t          resp_size,
+                               u_char             *response ,
+                               ngx_chain_t        *out      ,
+                               bool                in_memory )
+{
     ngx_buf_t   *b;
     // ngx_chain_t  out;
 
@@ -368,7 +386,8 @@ static void* ngx_http_alpaca_create_loc_conf(ngx_conf_t* cf) {
     conf->max_obj_size         = NGX_CONF_UNSET_UINT;
     conf->use_total_obj_size   = NGX_CONF_UNSET;
     conf->obj_inlining_enabled = NGX_CONF_UNSET;
-    conf->css_inlining_enabled = NGX_CONF_UNSET;
+    conf->force_css_inlining   = NGX_CONF_UNSET;
+    conf->css_as_inline_object = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -388,38 +407,49 @@ static char* ngx_http_alpaca_merge_loc_conf(ngx_conf_t* cf, void* parent, void* 
     ngx_conf_merge_str_value (conf->dist_obj_size       , prev->dist_obj_size       , "");
     ngx_conf_merge_value     (conf->use_total_obj_size  , prev->use_total_obj_size  , 0 );
     ngx_conf_merge_value     (conf->obj_inlining_enabled, prev->obj_inlining_enabled, 0 );
-    ngx_conf_merge_value     (conf->css_inlining_enabled, prev->css_inlining_enabled, 0 );
+    ngx_conf_merge_value     (conf->force_css_inlining  , prev->force_css_inlining  , 0 );
+    ngx_conf_merge_value     (conf->css_as_inline_object, prev->css_as_inline_object, 0 );
 
 
     // Check if the directives' arguments are properly set
-    if ( (conf->prob_enabled && conf->deter_enabled) ) {
-        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "Both probabilistic and deterministic ALPaCA are enabled." );
-        return NGX_CONF_ERROR;
-    }
 
-    if (conf->prob_enabled && conf->dist_obj_size.len == 0) {
-        ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "dist_obj_size is needed in probabilistic mode" );
-        return NGX_CONF_ERROR;
-    }
+    if (conf->deter_enabled || conf->prob_enabled) {
 
-    if (conf->deter_enabled) {
-
-        if ( (conf->obj_size <= 0) || (conf->max_obj_size <= 0) ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "You can't provide non-positive values or no "
-                                                     "values at all for deterministic ALPaCA."      );
+        if ( conf->deter_enabled && !conf->obj_inlining_enabled && !conf->obj_num ) {
+            ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "You can't provide a value of 0 for object number when "
+                                                      "object inlining (alpaca_obj_inlining_enabled) is disabled." );
             return NGX_CONF_ERROR;
         }
 
-        if ( conf->max_obj_size < conf->obj_size ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Object size cannot be greater than max object "
-                                                     "size for deterministic ALPaCA."                 );
+        if ( conf->prob_enabled && conf->deter_enabled ) {
+            ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "Both probabilistic and deterministic ALPaCA are enabled." );
             return NGX_CONF_ERROR;
         }
 
-        if ( conf->max_obj_size % conf->obj_size != 0 ) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Max object size has to be a multiple of object "
-                                                     "size for deterministic ALPaCA."                  );
+        if ( conf->prob_enabled && conf->dist_obj_size.len == 0 ) {
+            ngx_conf_log_error( NGX_LOG_EMERG, cf, 0, "dist_obj_size is needed in probabilistic mode" );
             return NGX_CONF_ERROR;
+        }
+
+        if ( conf->deter_enabled ) {
+
+            if ( (conf->obj_size <= 0) || (conf->max_obj_size <= 0) ) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "You can't provide non-positive values or no "
+                                                         "values at all for deterministic ALPaCA."      );
+                return NGX_CONF_ERROR;
+            }
+
+            if ( conf->max_obj_size < conf->obj_size ) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Object size cannot be greater than max object "
+                                                         "size for deterministic ALPaCA."                 );
+                return NGX_CONF_ERROR;
+            }
+
+            if ( conf->max_obj_size % conf->obj_size != 0 ) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "Max object size has to be a multiple of object "
+                                                         "size for deterministic ALPaCA."                  );
+                return NGX_CONF_ERROR;
+            }
         }
     }
     return NGX_CONF_OK;
@@ -474,7 +504,7 @@ int8_t execute_subrequests( struct MorphInfo          **main_info ,
 
     // Collects required css filenames. If not activated or no files were found
     // then we get every other filename that can be padded inside the given html
-    if (plcf->css_inlining_enabled) {
+    if (plcf->force_css_inlining) {
         objects = get_required_css_files(*main_info, subreq_tbd);
     }
 
@@ -668,8 +698,7 @@ static ngx_int_t ngx_http_alpaca_header_filter(ngx_http_request_t* r) {
 
     plcf = ngx_http_get_module_loc_conf(r, ngx_http_alpaca_module);
 
-    // Call the next filter if neither of the ALPaCA versions have been
-    // activated
+    // Call the next filter if neither of the ALPaCA versions have been activated
 
     // But always serve the fake image, even if the configuration does not
     // enable ALPaCA for the /__alpaca_fake_image.png url
@@ -881,11 +910,11 @@ static ngx_int_t ngx_http_alpaca_body_filter(ngx_http_request_t* r, ngx_chain_t*
 				if (subreq_count == subreq_tbd) {
 
                     // We are processing the last CSS subrequest
-                    if ( is_css(r) && plcf->css_inlining_enabled ) {
+                    if ( is_css(r) && plcf->force_css_inlining ) {
 
                         subreq_count = 0;
 
-                        inline_css_content(main_info, req_mapper);
+                        inline_all_css(main_info, req_mapper);
 
                         execute_html_object_subrequests(main_info, &subreq_tbd, r);
 
