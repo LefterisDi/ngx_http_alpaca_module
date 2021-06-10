@@ -1,0 +1,10 @@
+body {
+  background-image:url("simba.gif");
+  background-color: lightblue;
+  border-image-source: url(q2.gif);
+}
+
+h1 {
+  color: navy;
+  margin-left: 20px;
+}
